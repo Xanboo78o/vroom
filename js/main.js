@@ -594,7 +594,7 @@ function loop(t){
       for(const o of G.machines.values()) if(o !== m) bumpMachines(m, o, onImpact);
     }
   }
-  if(G.mode === 'play') stepGuy(G.me, WORLD, G.input, G.camYaw, dt);
+  if(G.mode === 'play') stepGuy(G.me, WORLD, G.input, G.camYaw, dt, mouseAim());
   else if(G.mode === 'build'){   // guy stands by while building
     G.me.group.visible = !G.me.inMachine;
     G.me.group.position.copy(G.me.pos);
@@ -634,6 +634,18 @@ function loop(t){
     }
   }
   G.renderer.render(G.scene, G.camera);
+}
+
+/* the ground point under the cursor, as a walk direction from the guy */
+function mouseAim(){
+  if(!G.me || G.me.inMachine) return null;
+  ray.setFromCamera(mouse, G.camera);
+  const t = (G.me.pos.y + 0.5 - ray.ray.origin.y) / ray.ray.direction.y;
+  if(!(t > 0)) return null;
+  const wp = ray.ray.origin.clone().addScaledVector(ray.ray.direction, t);
+  const dx = wp.x - G.me.pos.x, dz = wp.z - G.me.pos.z;
+  const L = Math.hypot(dx, dz);
+  return L > 0.5 ? { x: dx / L, z: dz / L } : null;   // dead zone on top of the guy
 }
 
 /* ---- camera: fixed top-down, north up ------------------------------------- */

@@ -50,7 +50,7 @@ export function fillGuyMesh(g, color){
   const armR = armL.clone(); armR.position.x = 0.29; armR.name = 'armR'; g.add(armR);
 }
 
-export function stepGuy(g, world, input, camYaw, dt){
+export function stepGuy(g, world, input, camYaw, dt, aim){
   if(g.inMachine){ g.group.visible = false; return; }
   g.group.visible = true;
 
@@ -61,17 +61,33 @@ export function stepGuy(g, world, input, camYaw, dt){
     const gy = world.h(g.pos.x, g.pos.z);
     if(g.pos.y <= gy){ g.pos.y = gy; g.flying = false; g.vel.set(0, 0, 0); g.group.rotation.x = 0; }
   } else {
-    let mx = 0, mz = 0;
-    if(input.up) mz -= 1; if(input.down) mz += 1;
-    if(input.left) mx -= 1; if(input.right) mx += 1;
-    const mag = Math.hypot(mx, mz);
+    let mx = 0, mz = 0, mag = 0;
     const speed = input.run ? RUN : WALK;
-    if(mag > 0){
-      const a = Math.atan2(mx, mz) + camYaw;
-      g.vel.x = Math.sin(a) * speed; g.vel.z = Math.cos(a) * speed;
-      g.yaw = a + Math.PI;
-      g.walkT += dt * speed;
-    } else { g.vel.x = 0; g.vel.z = 0; g.walkT *= 0.8; }
+    if(aim){
+      // mouse-aimed: W = toward the cursor, S = away, A/D = strafe around it
+      const rx = -aim.z, rz = aim.x;
+      if(input.up){ mx += aim.x; mz += aim.z; }
+      if(input.down){ mx -= aim.x; mz -= aim.z; }
+      if(input.right){ mx += rx; mz += rz; }
+      if(input.left){ mx -= rx; mz -= rz; }
+      mag = Math.hypot(mx, mz);
+      if(mag > 0){
+        g.vel.x = mx / mag * speed; g.vel.z = mz / mag * speed;
+        g.walkT += dt * speed;
+      } else { g.vel.x = 0; g.vel.z = 0; g.walkT *= 0.8; }
+      g.yaw = Math.atan2(aim.x, aim.z) + Math.PI;   // always face the cursor
+      mag = Math.min(1, mag);
+    } else {
+      if(input.up) mz -= 1; if(input.down) mz += 1;
+      if(input.left) mx -= 1; if(input.right) mx += 1;
+      mag = Math.hypot(mx, mz);
+      if(mag > 0){
+        const a = Math.atan2(mx, mz) + camYaw;
+        g.vel.x = Math.sin(a) * speed; g.vel.z = Math.cos(a) * speed;
+        g.yaw = a + Math.PI;
+        g.walkT += dt * speed;
+      } else { g.vel.x = 0; g.vel.z = 0; g.walkT *= 0.8; }
+    }
 
     const gy = world.h(g.pos.x, g.pos.z);
     const onGround = g.pos.y <= gy + 0.02;
