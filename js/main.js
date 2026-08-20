@@ -21,7 +21,7 @@ const G = {
   me: null, guys: new Map(), machines: new Map(), debris: new Map(),
   mode: 'menu', solo: true,
   camYaw: 0, camDist: 14,          // camDist = camera height (top-down)
-  camFree: null,                   // Vector3 = panned-away camera; null = following you
+  buildCamPos: null,               // frozen view point while building (Ctrl+G re-centers)
   shad: new Map(),
   input: {},
   buildSel: 'frame', buildRot: 0, buildTarget: null, ghost: null, ghostCell: null,
@@ -150,8 +150,9 @@ function wireNet(){
   NET.on('shear', d => {
     const m = G.machines.get(d.mid);
     if(m && m.remote){
+      const c0 = m.center.clone();
       for(const [k] of d.cells) m.parts.delete(k);
-      refresh(m); rebuildMesh(m);
+      refresh(m); anchorFix(m, c0); rebuildMesh(m);
     }
     for(const db of d.debris) spawnDebris(db, false);
   });
@@ -185,7 +186,12 @@ const KEYMAP = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down',
 function wireInput(){
   addEventListener('keydown', e => {
     if(G.mode === 'menu') return;
-    if(e.ctrlKey && e.code === 'KeyG'){ e.preventDefault(); G.camFree = null; return; }
+    if(e.ctrlKey && e.code === 'KeyG'){      // re-center the build view
+      e.preventDefault();
+      const m = G.machines.get(G.buildTarget);
+      if(G.mode === 'build' && m && G.buildCamPos) G.buildCamPos.copy(m.pos);
+      return;
+    }
     if(KEYMAP[e.code]) G.input[KEYMAP[e.code]] = true;
     if(e.code === 'KeyE') actionSeat();
     if(e.code === 'KeyF') actionGrab();
@@ -209,26 +215,15 @@ function wireInput(){
   addEventListener('keyup', e => { if(KEYMAP[e.code]) G.input[KEYMAP[e.code]] = false; });
 
   const cv = $('#c');
-  const pan = { on: false };
   addEventListener('mousemove', e => {
     mouse.x = (e.clientX / innerWidth) * 2 - 1;
     mouse.y = -(e.clientY / innerHeight) * 2 + 1;
-    if(pan.on && G.mode === 'play' && (e.buttons & 1)){
-      // grab-the-world pan: once you pan, the camera is YOURS (Ctrl+G to recenter)
-      if(!G.camFree) G.camFree = camT.clone();
-      const upp = 2 * G.camDist * Math.tan(G.camera.fov * Math.PI / 360) / innerHeight;
-      G.camFree.x = THREE.MathUtils.clamp(G.camFree.x - e.movementX * upp, -WORLD.size, WORLD.size);
-      G.camFree.z = THREE.MathUtils.clamp(G.camFree.z - e.movementY * upp, -WORLD.size, WORLD.size);
-      G.camFree.y = 0;
-    }
   });
   cv.addEventListener('mousedown', e => {
-    if(G.mode === 'play' && e.button === 0){ pan.on = true; return; }
     if(G.mode !== 'build') return;
     if(e.button === 0) placePart();
     else if(e.button === 2) removePart();
   });
-  addEventListener('mouseup', () => pan.on = false);
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('wheel', e => {
     G.camDist = THREE.MathUtils.clamp(G.camDist + e.deltaY * 0.02, 8, 42);
@@ -238,6 +233,14 @@ function wireInput(){
 
 /* ---- seats --------------------------------------------------------------- */
 function drivenMachine(){ return G.me && G.me.inMachine ? G.machines.get(G.me.inMachine) : null; }
+
+/* When the part grid changes, m.center moves — shift m.pos to match so the
+   BLOCKS stay exactly where they were in the world (no recenter jump).
+   Capture c0 = m.center.clone() BEFORE the change, call this after refresh. */
+function anchorFix(m, c0){
+  m.pos.add(m.center.clone().sub(c0).applyQuaternion(m.quat));
+  if(m.netP) m.netP.add(m.center.clone().sub(c0).applyQuaternion(m.quat));
+}
 
 function actionSeat(){
   const m = drivenMachine();
@@ -274,9 +277,10 @@ function ownerName(m){
 /* ---- impacts / shear / debris -------------------------------------------- */
 function onImpact(m, J, at){
   if(m.remote || m.grace > 0) return;
+  const c0 = m.center.clone();
   const shed = shearParts(m, J, at);
   if(!shed.length) return;
-  rebuildMesh(m);
+  anchorFix(m, c0); rebuildMesh(m);
   const list = [];
   for(const c of shed){
     const [x, y, z] = c.k.split(',').map(Number);
@@ -361,6 +365,7 @@ function actionGrab(){
   }
   if(myM && G.carried.length && repairOK(myM.pos)){
     let n = 0;
+    const c0 = myM.center.clone();
     G.carried = G.carried.filter(c => {
       if(c.home && c.home.mid === myM.id && !myM.parts.has(c.home.k)){
         myM.parts.set(c.home.k, { type: c.type, rot: c.rot }); n++; return false;
@@ -368,7 +373,7 @@ function actionGrab(){
       return true;
     });
     if(n){
-      refresh(myM); rebuildMesh(myM);
+      refresh(myM); anchorFix(myM, c0); rebuildMesh(myM);
       toast(n + (n > 1 ? ' parts' : ' part') + ' back on!');
       if(!G.solo) sendBuilds();
       return;
@@ -384,8 +389,9 @@ function actionGrab(){
   const home = G.machines.get(best.home?.mid);
   const mine = home && home.owner === myPid();
   if(mine && home.pos.distanceTo(G.me.pos) < 9 && !home.parts.has(best.home.k) && repairOK(home.pos)){
+    const c0 = home.center.clone();
     home.parts.set(best.home.k, { type: best.type, rot: best.rot });
-    refresh(home); rebuildMesh(home);
+    refresh(home); anchorFix(home, c0); rebuildMesh(home);
     toast(PARTS[best.type].label + ' back on!');
     if(!G.solo){ NET.send('grab', { did: best.did }); sendBuilds(); }
   } else {
@@ -426,11 +432,11 @@ function toggleBuild(){
     G.machines.set(target.id, target); G.scene.add(target.group);
   }
   G.buildTarget = target.id;
-  G.camFree = null;                    // building = you want to see the machine
   target.editing = true; target.vel.set(0, 0, 0); target.angVel.set(0, 0, 0);
   // stand it flat for editing
   target.quat.setFromEuler(new THREE.Euler(0, new THREE.Euler().setFromQuaternion(target.quat, 'YXZ').y, 0));
   target.pos.y = WORLD.h(target.pos.x, target.pos.z) + target.half.y + CELL;
+  G.buildCamPos = target.pos.clone();
   G.mode = 'build';
   document.exitPointerLock && document.exitPointerLock();
   $('#tray').classList.remove('hide');
@@ -444,6 +450,7 @@ function exitBuild(){
   $('#tray').classList.add('hide');
   if(G.ghost){ G.scene.remove(G.ghost); G.ghost = null; }
   G.ghostCell = null;
+  G.buildCamPos = null;
 }
 function selectPart(t){
   G.buildSel = t;
@@ -511,8 +518,9 @@ function buildHover(){
 function placePart(){
   const m = G.machines.get(G.buildTarget);
   if(!m || !G.ghostCell) return;
+  const c0 = m.center.clone();
   m.parts.set(key(...G.ghostCell.cell), { type: G.buildSel, rot: G.buildRot });
-  refresh(m); rebuildMesh(m);
+  refresh(m); anchorFix(m, c0); rebuildMesh(m);
   m.pos.y = Math.max(m.pos.y, WORLD.h(m.pos.x, m.pos.z) + m.half.y + CELL * 0.5);
 }
 function removePart(){
@@ -524,8 +532,9 @@ function removePart(){
   let o = hits[0].object;
   while(o && !o.userData.cellKey) o = o.parent;
   if(!o || m.parts.size <= 1) return;
+  const c0 = m.center.clone();
   m.parts.delete(o.userData.cellKey);
-  refresh(m); rebuildMesh(m);
+  refresh(m); anchorFix(m, c0); rebuildMesh(m);
 }
 
 /* ---- laps ----------------------------------------------------------------- */
@@ -632,17 +641,16 @@ const camT = new THREE.Vector3();
 function camera(dt, drv){
   let focus, H = G.camDist;
   if(G.mode === 'build'){
+    // frozen while you build — the view never chases the growing machine
     const m = G.machines.get(G.buildTarget);
-    focus = m ? m.pos : G.me.pos;
+    focus = G.buildCamPos || (m ? m.pos : G.me.pos);
     H = Math.min(H, 16);
-  } else if(G.camFree){
-    focus = G.camFree;                           // panned away — stays put until Ctrl+G
   } else if(drv){
     focus = drv.pos;
     H = G.camDist + drv.vel.length() * 0.45;     // zoom out a bit at speed
   } else focus = G.me.pos;
 
-  camT.lerp(focus, Math.min(1, dt * (G.camFree && G.mode !== 'build' ? 30 : 8)));
+  camT.lerp(focus, Math.min(1, dt * 8));
   G.camera.up.set(0, 0, -1);
   G.camera.position.set(camT.x, camT.y + H, camT.z);
   G.camera.lookAt(camT.x, camT.y, camT.z);
@@ -662,13 +670,12 @@ function hud(drv, t){
     lapEl.style.display = G.lap.next > 0 ? 'block' : 'none';
     if(G.lap.next > 0) lapEl.textContent = fmtMs(performance.now() - G.lap.t0) + (G.lap.best ? '  best ' + fmtMs(G.lap.best) : '');
     prompt(t - lastPitFlash < 400 ? 'PIT — refueling' :
-      (drv.fuel <= 0 && drv.engines ? 'OUT OF FUEL — pit lane refuels'
-        : G.camFree ? 'Ctrl+G — camera back on you' : 'E hop out · Shift VROOM'));
+      (drv.fuel <= 0 && drv.engines ? 'OUT OF FUEL — pit lane refuels' : 'E hop out · Shift VROOM'));
   } else {
     sp.style.display = 'none'; $('#bars').style.display = 'none'; lapEl.style.display = 'none';
     // context prompt
     let p = '';
-    if(G.mode === 'build') p = 'click add (middle = stack up, edge = sideways) · right-click remove · R rotate · B done';
+    if(G.mode === 'build') p = 'click add (middle = stack up, edge = sideways) · right-click remove · R rotate · Ctrl+G recenter · B done';
     else {
       let nearSeat = false, nearDb = false;
       for(const m of G.machines.values()){
@@ -682,7 +689,7 @@ function hud(drv, t){
         if(m.owner === myPid() && m.pos.distanceTo(G.me.pos) < 7){ nearMine = true; break; }
       p = nearSeat ? 'E — hop in' : nearDb ? 'F — grab part'
         : nearMine ? 'F — bolt ' + G.carried.length + ' carried part' + (G.carried.length > 1 ? 's' : '') + ' on'
-        : G.camFree ? 'Ctrl+G — camera back on you' : 'WASD walk · B build';
+        : 'WASD walk · B build';
     }
     prompt(p);
   }
