@@ -4,6 +4,7 @@
    Geometry is code-built at the origin, facing local +Z, inside one CELL.
    ============================================================================= */
 import * as THREE from 'three';
+import { artTex } from './art.js';
 
 export const CELL = 0.6;                 // world units per grid cell
 
@@ -152,6 +153,18 @@ export const PART_ORDER = ['frame', 'seat', 'wheel', 'engine', 'tank', 'intake',
 export function buildPartMesh(type, rot = 0){
   const def = PARTS[type];
   const g = def.build();
+  // Adam's SVG as the top face (the game is viewed from above)
+  const tex = artTex(type);
+  if(tex){
+    const box = new THREE.Box3().setFromObject(g);
+    const quad = new THREE.Mesh(
+      new THREE.PlaneGeometry(CELL * 0.985, CELL * 0.985),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+    );
+    quad.rotation.set(-Math.PI / 2, 0, Math.PI);   // svg "up" = machine forward
+    quad.position.y = box.max.y + 0.012;
+    g.add(quad);
+  }
   g.rotation.y = rot * Math.PI / 2;
   const wrap = new THREE.Group();
   wrap.add(g);

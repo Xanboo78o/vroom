@@ -7,7 +7,8 @@ import { PARTS, PART_ORDER, CELL, buildPartMesh, mat, shade } from './parts.js';
 import { makeMachine, starterLayout, serializeParts, loadParts, refresh, rebuildMesh,
          syncMesh, stepMachine, bumpMachines, shearParts, cellWorld, TUNE } from './machine.js';
 import { buildWorld, WORLD, inPit } from './world.js';
-import { makeGuy, stepGuy, syncRemoteGuy, eject, buildGuyMesh } from './guy.js';
+import { makeGuy, stepGuy, syncRemoteGuy, eject, fillGuyMesh } from './guy.js';
+import { loadArt } from './art.js';
 import { NET, makeCode } from './net.js';
 import { VOICE } from './voice.js';
 
@@ -19,7 +20,8 @@ const G = {
   scene: null, camera: null, renderer: null,
   me: null, guys: new Map(), machines: new Map(), debris: new Map(),
   mode: 'menu', solo: true,
-  camYaw: 0, camPitch: 0.32, camDist: 9,
+  camYaw: 0, camDist: 14,          // camDist = camera height (top-down)
+  shad: new Map(),
   input: {},
   buildSel: 'frame', buildRot: 0, buildTarget: null, ghost: null, ghostCell: null,
   carried: [],
@@ -58,7 +60,7 @@ function wireMenu(){
   };
   $('#joinBtn').onclick = async () => {
     const code = $('#code').value.trim().toUpperCase();
-    if(code.length !== 4){ toast('code is 4 letters'); return; }
+    if(code.length !== 4){ $('#menuMsg').textContent = 'code is 4 letters'; return; }
     await startGame({ solo: false, host: false, code });
   };
 }
@@ -66,6 +68,7 @@ function wireMenu(){
 async function startGame(opt){
   const name = ($('#nm').value.trim() || 'DRIVER').slice(0, 12);
   localStorage.vr_name = name;
+  await loadArt();                       // Adam's SVGs, if drawn
   G.solo = opt.solo;
   if(!opt.solo){
     $('#menuMsg').textContent = 'connecting…';
@@ -186,6 +189,14 @@ function wireInput(){
     if(e.code === 'KeyF') actionGrab();
     if(e.code === 'KeyB') toggleBuild();
     if(e.code === 'KeyM' && VOICE.on) $('#vcBtn').textContent = VOICE.toggleMute() ? '🔇 VC' : '🎙 VC';
+    if(e.code === 'KeyT'){         // hot-reload Adam's art
+      loadArt().then(loaded => {
+        for(const m of G.machines.values()) rebuildMesh(m);
+        if(G.me) fillGuyMesh(G.me.group, G.me.color);
+        for(const [, g] of G.guys) fillGuyMesh(g.group, g.color);
+        console.log('[art] reloaded:', loaded.join(', ') || '(none drawn yet)');
+      });
+    }
     if(G.mode === 'build'){
       if(e.code === 'KeyR'){ G.buildRot = (G.buildRot + 1) & 3; }
       const idx = PART_ORDER.findIndex(t => PARTS[t].key === e.key);
@@ -196,34 +207,18 @@ function wireInput(){
   addEventListener('keyup', e => { if(KEYMAP[e.code]) G.input[KEYMAP[e.code]] = false; });
 
   const cv = $('#c');
-  cv.addEventListener('click', () => {
-    if(G.mode === 'play' && document.pointerLockElement !== cv) cv.requestPointerLock();
-  });
   addEventListener('mousemove', e => {
-    if(G.mode === 'play' && document.pointerLockElement === cv){
-      G.camYaw -= e.movementX * 0.0026;
-      G.camPitch = THREE.MathUtils.clamp(G.camPitch + e.movementY * 0.0022, -0.2, 1.2);
-    }
-    if(G.mode === 'build'){
-      if(dragOrbit.on){
-        G.camYaw -= e.movementX * 0.006;
-        G.camPitch = THREE.MathUtils.clamp(G.camPitch + e.movementY * 0.005, -0.1, 1.3);
-      }
-      mouse.x = (e.clientX / innerWidth) * 2 - 1;
-      mouse.y = -(e.clientY / innerHeight) * 2 + 1;
-    }
+    mouse.x = (e.clientX / innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / innerHeight) * 2 + 1;
   });
-  const dragOrbit = { on: false };
   cv.addEventListener('mousedown', e => {
     if(G.mode !== 'build') return;
-    if(e.button === 1 || e.shiftKey){ dragOrbit.on = true; e.preventDefault(); }
-    else if(e.button === 0) placePart();
+    if(e.button === 0) placePart();
     else if(e.button === 2) removePart();
   });
-  addEventListener('mouseup', () => dragOrbit.on = false);
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('wheel', e => {
-    G.camDist = THREE.MathUtils.clamp(G.camDist + e.deltaY * 0.01, 4, 22);
+    G.camDist = THREE.MathUtils.clamp(G.camDist + e.deltaY * 0.02, 8, 42);
   });
   $('#vcBtn').onclick = () => { $('#vcBtn').textContent = VOICE.toggleMute() ? '🔇 VC' : '🎙 VC'; };
 }
@@ -313,6 +308,33 @@ function stepDebris(dt){
     db.mesh.position.copy(db.pos);
     if(!db.asleep){ db.mesh.rotation.x += db.spinA.x * dt; db.mesh.rotation.y += db.spinA.y * dt; }
   }
+}
+
+/* ---- blob shadows: the depth cue that sells jumps from above -------------- */
+const SHAD_GEO = new THREE.CircleGeometry(1, 18);
+function updateShadows(){
+  for(const s of G.shad.values()) s.userData.used = false;
+  const put = (id, x, z, y, r) => {
+    let s = G.shad.get(id);
+    if(!s){
+      s = new THREE.Mesh(SHAD_GEO, new THREE.MeshBasicMaterial({ color: 0x233618, transparent: true, opacity: 0.24, depthWrite: false }));
+      s.rotation.x = -Math.PI / 2;
+      G.scene.add(s); G.shad.set(id, s);
+    }
+    s.userData.used = true;
+    const gy = WORLD.h(x, z);
+    const lift = Math.max(0, y - gy);
+    const k = THREE.MathUtils.clamp(1 - lift * 0.05, 0.45, 1);
+    s.position.set(x, gy + 0.055, z);
+    s.scale.setScalar(r * (0.7 + 0.3 * k));
+    s.material.opacity = 0.26 * k;
+  };
+  for(const m of G.machines.values()) if(m.parts.size)
+    put('m:' + m.id, m.pos.x, m.pos.z, m.pos.y - m.half.y, Math.max(0.8, m.radius * 0.9));
+  if(G.me && !G.me.inMachine) put('me', G.me.pos.x, G.me.pos.z, G.me.pos.y, 0.5);
+  for(const [pid, g] of G.guys) if(!g.inMachine) put('g:' + pid, g.pos.x, g.pos.z, g.pos.y, 0.5);
+  for(const db of G.debris.values()) put('d:' + db.did, db.pos.x, db.pos.z, db.pos.y, 0.42);
+  for(const [id, s] of G.shad) if(!s.userData.used){ G.scene.remove(s); G.shad.delete(id); }
 }
 
 function actionGrab(){
@@ -424,6 +446,21 @@ function renderTray(){
     tray.appendChild(b);
   }
 }
+function hasNeighbor(m, [x, y, z]){
+  for(const d of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])
+    if(m.parts.has(key(x + d[0], y + d[1], z + d[2]))) return true;
+  return false;
+}
+function setGhost(m, nc, on){
+  G.ghostCell = { cell: nc, on };
+  while(G.ghost.children.length) G.ghost.remove(G.ghost.children[0]);
+  const gm = buildPartMesh(G.buildSel, G.buildRot);
+  gm.traverse(ob => { if(ob.material){ ob.material = ob.material.clone(); ob.material.transparent = true; ob.material.opacity = 0.55; } });
+  G.ghost.add(gm);
+  G.ghost.position.copy(cellWorld(m, ...nc));
+  G.ghost.quaternion.copy(m.quat);
+  G.ghost.visible = true;
+}
 function buildHover(){
   const m = G.machines.get(G.buildTarget);
   if(!m || !G.ghost) return;
@@ -431,31 +468,31 @@ function buildHover(){
   const hits = ray.intersectObjects(m.group.children, true).filter(h => h.object.isMesh);
   G.ghostCell = null;
   G.ghost.visible = false;
-  if(!hits.length) return;
-  let o = hits[0].object;
+  let o = hits.length ? hits[0].object : null;
   while(o && !o.userData.cellKey) o = o.parent;
-  if(!o) return;
-  const [cx, cy, cz] = o.userData.cellKey.split(',').map(Number);
-  // local hit point → which face of the cell
-  const lp = m.group.worldToLocal(hits[0].point.clone()).add(m.center).divideScalar(CELL);
-  const dx = lp.x - cx, dy = lp.y - cy, dz = lp.z - cz;
-  const ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
-  let d = [0, 1, 0];
-  if(ax >= ay && ax >= az) d = [Math.sign(dx) || 1, 0, 0];
-  else if(az >= ax && az >= ay) d = [0, 0, Math.sign(dz) || 1];
-  else d = [0, Math.sign(dy) || 1, 0];
-  const nc = [cx + d[0], cy + d[1], cz + d[2]];
-  if(m.parts.has(key(...nc))) return;
-  G.ghostCell = { cell: nc, on: o.userData.cellKey };
-  // ghost mesh
-  while(G.ghost.children.length) G.ghost.remove(G.ghost.children[0]);
-  const gm = buildPartMesh(G.buildSel, G.buildRot);
-  gm.traverse(ob => { if(ob.material){ ob.material = ob.material.clone(); ob.material.transparent = true; ob.material.opacity = 0.55; } });
-  G.ghost.add(gm);
-  const wp = cellWorld(m, ...nc);
-  G.ghost.position.copy(wp);
-  G.ghost.quaternion.copy(m.quat);
-  G.ghost.visible = true;
+  if(o){
+    // top-down rule: middle of a block stacks UP, near an edge extends sideways
+    const [cx, cy, cz] = o.userData.cellKey.split(',').map(Number);
+    const lp = m.group.worldToLocal(hits[0].point.clone()).add(m.center).divideScalar(CELL);
+    const dx = lp.x - cx, dz = lp.z - cz;
+    const ax = Math.abs(dx), az = Math.abs(dz);
+    let d;
+    if(Math.max(ax, az) > 0.33) d = ax >= az ? [Math.sign(dx) || 1, 0, 0] : [0, 0, Math.sign(dz) || 1];
+    else d = [0, 1, 0];
+    const nc = [cx + d[0], cy + d[1], cz + d[2]];
+    if(!m.parts.has(key(...nc))) setGhost(m, nc, o.userData.cellKey);
+    return;
+  }
+  // missed the machine: aim at its bottom-layer plane, snap to the nearest cell
+  let minY = 1e9;
+  for(const k of m.parts.keys()){ const y = +k.split(',')[1]; if(y < minY) minY = y; }
+  const planeY = m.pos.y + (minY * CELL - m.center.y);
+  const t = (planeY - ray.ray.origin.y) / ray.ray.direction.y;
+  if(!(t > 0)) return;
+  const wp = ray.ray.origin.clone().addScaledVector(ray.ray.direction, t);
+  const lp = m.group.worldToLocal(wp).add(m.center).divideScalar(CELL);
+  const nc = [Math.round(lp.x), minY, Math.round(lp.z)];
+  if(!m.parts.has(key(...nc)) && hasNeighbor(m, nc)) setGhost(m, nc, null);
 }
 function placePart(){
   const m = G.machines.get(G.buildTarget);
@@ -535,9 +572,14 @@ function loop(t){
     }
   }
   if(G.mode === 'play') stepGuy(G.me, WORLD, G.input, G.camYaw, dt);
+  else if(G.mode === 'build'){   // guy stands by while building
+    G.me.group.visible = !G.me.inMachine;
+    G.me.group.position.copy(G.me.pos);
+  }
   for(const [pid, g] of G.guys) syncRemoteGuy(g, dt);
   for(const m of G.machines.values()) syncMesh(m, dt);
   stepDebris(dt);
+  updateShadows();
 
   // driving extras: lap timing, pit refuel, guy rides along
   if(drv){
@@ -571,33 +613,24 @@ function loop(t){
   G.renderer.render(G.scene, G.camera);
 }
 
-/* ---- camera --------------------------------------------------------------- */
-const camT = new THREE.Vector3(), camP = new THREE.Vector3();
+/* ---- camera: fixed top-down, north up ------------------------------------- */
+const camT = new THREE.Vector3();
 function camera(dt, drv){
-  let focus, dist = G.camDist, height = 2;
+  let focus, H = G.camDist;
   if(G.mode === 'build'){
     const m = G.machines.get(G.buildTarget);
-    focus = m ? m.pos : G.me.pos; dist = Math.max(6, G.camDist); height = 1;
+    focus = m ? m.pos : G.me.pos;
+    H = Math.min(H, 16);
   } else if(drv){
-    focus = drv.pos; dist = 8 + drv.radius * 1.6; height = 3.2;
-    // chase behind the machine's heading
-    const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(drv.quat);
-    const want = Math.atan2(fwd.x, fwd.z) + Math.PI;
-    if(document.pointerLockElement !== $('#c')){ /* free */ }
-    G.camYaw += shortAngle(want - Math.PI - G.camYaw + Math.PI) * Math.min(1, dt * 3.2);
+    focus = drv.pos;
+    H = G.camDist + drv.vel.length() * 0.45;     // zoom out a bit at speed
   } else focus = G.me.pos;
 
   camT.lerp(focus, Math.min(1, dt * 8));
-  const cy = G.camYaw, cp = G.camPitch;
-  camP.set(camT.x - Math.sin(cy) * Math.cos(cp) * dist,
-           camT.y + height + Math.sin(cp) * dist,
-           camT.z - Math.cos(cy) * Math.cos(cp) * dist);
-  const gy = WORLD.h(camP.x, camP.z) + 0.6;
-  if(camP.y < gy) camP.y = gy;
-  G.camera.position.copy(camP);
-  G.camera.lookAt(camT.x, camT.y + 1.4, camT.z);
+  G.camera.up.set(0, 0, -1);
+  G.camera.position.set(camT.x, camT.y + H, camT.z);
+  G.camera.lookAt(camT.x, camT.y, camT.z);
 }
-const shortAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
 /* ---- hud ------------------------------------------------------------------ */
 let lastPitFlash = 0;
@@ -618,7 +651,7 @@ function hud(drv, t){
     sp.style.display = 'none'; $('#bars').style.display = 'none'; lapEl.style.display = 'none';
     // context prompt
     let p = '';
-    if(G.mode === 'build') p = 'click add · right-click remove · R rotate · shift-drag orbit · B done';
+    if(G.mode === 'build') p = 'click add (middle = stack up, edge = sideways) · right-click remove · R rotate · B done';
     else {
       let nearSeat = false, nearDb = false;
       for(const m of G.machines.values()){
@@ -632,17 +665,14 @@ function hud(drv, t){
         if(m.owner === myPid() && m.pos.distanceTo(G.me.pos) < 7){ nearMine = true; break; }
       p = nearSeat ? 'E — hop in' : nearDb ? 'F — grab part'
         : nearMine ? 'F — bolt ' + G.carried.length + ' carried part' + (G.carried.length > 1 ? 's' : '') + ' on'
-        : 'WASD walk · B build · click to look';
+        : 'WASD walk · B build';
     }
     prompt(p);
   }
 }
 function prompt(s){ const el = $('#prompt'); if(el.textContent !== s) el.textContent = s; }
-let toastT = null;
-function toast(s){
-  const el = $('#toast'); el.textContent = s; el.classList.add('show');
-  clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2600);
-}
+// no toasts — pure Trailmakers, the world shows what happened (Adam's ruling)
+function toast(s){ console.log('[vroom]', s); }
 function renderPeers(){
   const names = [...NET.peers.values()].map(p => p.name);
   $('#peers').textContent = names.join(' · ');

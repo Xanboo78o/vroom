@@ -4,6 +4,7 @@
    ============================================================================= */
 import * as THREE from 'three';
 import { vbox, vcyl, shade, mat } from './parts.js';
+import { artTex } from './art.js';
 
 const WALK = 9, RUN = 14, G = 26, JUMP = 9.5;
 
@@ -22,6 +23,24 @@ export function makeGuy(color = 0xe8574f, name = ''){
 
 export function buildGuyMesh(color){
   const g = new THREE.Group();
+  fillGuyMesh(g, color);
+  return g;
+}
+
+// (re)build the guy's look in place — SVG sprite if Adam drew one, blocks if not
+export function fillGuyMesh(g, color){
+  while(g.children.length) g.remove(g.children[0]);
+  const tex = artTex('guy');
+  if(tex){
+    const quad = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.8, 1.8),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+    );
+    quad.rotation.x = -Math.PI / 2;
+    quad.position.y = 0.5;                 // floats a touch: reads over machines
+    g.add(quad);
+    return;
+  }
   const body = vbox(0.42, 0.55, 0.3, color); body.position.y = 0.62; body.name = 'body'; g.add(body);
   const head = vbox(0.34, 0.3, 0.3, 0xf2d1a8); head.position.y = 1.06; g.add(head);
   const cap = vbox(0.38, 0.12, 0.34, shade(color, 0.85)); cap.position.y = 1.24; g.add(cap);
@@ -29,7 +48,6 @@ export function buildGuyMesh(color){
   const legR = legL.clone(); legR.position.x = 0.11; legR.name = 'legR'; g.add(legR);
   const armL = vbox(0.12, 0.4, 0.16, shade(color, 0.88)); armL.position.set(-0.29, 0.68, 0); armL.name = 'armL'; g.add(armL);
   const armR = armL.clone(); armR.position.x = 0.29; armR.name = 'armR'; g.add(armR);
-  return g;
 }
 
 export function stepGuy(g, world, input, camYaw, dt){

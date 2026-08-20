@@ -13,7 +13,7 @@ export const WORLD = {
   walls: [],        // AABBs {min:V3, max:V3, hex}
   pits: [],         // XZ rects {x,z,w,d} — refuel + repair zones
   checkpoints: [],  // ordered gates {x,z,r}; [0] is start/finish
-  spawn: new THREE.Vector3(6, 0, 34),
+  spawn: new THREE.Vector3(0, 0, 46),
   parking: [],      // starter machine spots
 };
 
@@ -105,13 +105,19 @@ export function buildWorld(scene){
   ribbon(scene, TRK.w, 0x555e69, 0.03);
   for(let i = 0; i < 40; i++) ribbon(scene, 0.5, 0xe8e4d8, 0.04, i / 40, i / 40 + 0.006);
 
-  // start/finish line + gantry at t=0 (mid top edge)
+  // start/finish: checkered line painted on the road (no banner — top-down view)
   const sf = trackPoint(0);
-  const line = vbox(1.6, 0.06, TRK.w, 0xf2efe6); line.position.set(sf.x, 0.05, sf.z); scene.add(line);
-  const postL = vbox(1, 7, 1, 0xe8574f), postR = vbox(1, 7, 1, 0xe8574f);
-  postL.position.set(sf.x, 3.5, sf.z - TRK.w / 2 - 2); postR.position.set(sf.x, 3.5, sf.z + TRK.w / 2 + 2);
-  const banner = vbox(2.4, 1.6, TRK.w + 5, 0xe8574f); banner.position.set(sf.x, 6.6, sf.z);
-  scene.add(postL, postR, banner);
+  const sq = TRK.w / 8;
+  for(let i = 0; i < 8; i++) for(let j = 0; j < 2; j++){
+    if((i + j) % 2 === 0) continue;
+    const c = new THREE.Mesh(new THREE.PlaneGeometry(sq, sq), mat(0xf2efe6));
+    c.rotation.x = -Math.PI / 2;
+    c.position.set(sf.x - sq / 2 + j * sq, 0.05, sf.z - TRK.w / 2 + sq / 2 + i * sq);
+    scene.add(c);
+  }
+  const postL = vbox(1, 2.4, 1, 0xe8574f), postR = vbox(1, 2.4, 1, 0xe8574f);
+  postL.position.set(sf.x, 1.2, sf.z - TRK.w / 2 - 2); postR.position.set(sf.x, 1.2, sf.z + TRK.w / 2 + 2);
+  scene.add(postL, postR);
 
   // checkpoints: start + one per side (order matters for lap validity)
   WORLD.checkpoints = [
@@ -166,6 +172,22 @@ export function buildWorld(scene){
     // side skirts so it doesn't float
     const skirt = new THREE.Mesh(geo.clone(), mat(0xc07c44));
     skirt.scale.set(1, 1, 1); skirt.position.y = -0.05; scene.add(skirt);
+    // up-slope chevron stripes so the ramp reads from above
+    const along = r.dir === 0 || r.dir === 2;          // slope runs along z?
+    const span = along ? r.d : r.w;
+    const slope = Math.atan2(r.h, span);
+    for(let i = 1; i <= 3; i++){
+      const f = (r.dir === 0 || r.dir === 1) ? i / 4 : 1 - i / 4;
+      const sx2 = along ? r.x : (x0 + f * r.w);
+      const sz2 = along ? (z0 + f * r.d) : r.z;
+      const stripe = new THREE.Mesh(new THREE.PlaneGeometry(along ? r.w * 0.6 : 0.7, along ? 0.7 : r.d * 0.6), mat(0xeadcc4));
+      stripe.rotation.x = -Math.PI / 2;
+      stripe.rotation.y = 0;
+      if(along) stripe.rotation.x += (r.dir === 0 ? 1 : -1) * slope * 0.9;
+      else stripe.rotation.z = (r.dir === 1 ? -1 : 1) * slope * 0.9;
+      stripe.position.set(sx2, H(sx2, sz2) + 0.06, sz2);
+      scene.add(stripe);
+    }
   }
 
   // cones down the plaza edge (props, hand-placed)
