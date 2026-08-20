@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VROOM</title>
+<link rel="stylesheet" href="./style.css">
+<script src="./js/vendor/supabase.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./js/vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- ================= menu ================= -->
+<div id="menu">
+  <div class="card">
+    <h1>VROOM<span class="sub">build it · race it · lose a wheel</span></h1>
+    <input id="nm" maxlength="12" placeholder="your name" autocomplete="off">
+    <button id="soloBtn" class="big go">SANDBOX (solo)</button>
+    <div class="row">
+      <div class="col">
+        <div class="lbl">repairs</div>
+        <label><input type="radio" name="rep" id="repAny" checked> anywhere</label>
+        <label><input type="radio" name="rep" id="repPit"> pit only</label>
+        <button id="createBtn" class="big">CREATE ROOM</button>
+      </div>
+      <div class="col">
+        <div class="lbl">got a code?</div>
+        <input id="code" maxlength="4" placeholder="ABCD" class="codein" autocomplete="off">
+        <button id="joinBtn" class="big">JOIN</button>
+      </div>
+    </div>
+    <div id="menuMsg"></div>
+  </div>
+</div>
+
+<!-- ================= hud ================= -->
+<div id="hud" class="hide">
+  <div id="roomChip" class="chip tr" style="display:none"></div>
+  <div id="peers" class="chip tr2"></div>
+  <button id="vcBtn" class="chip vc" style="display:none">🎙 VC</button>
+  <div id="lap" class="chip tc"></div>
+  <div id="speed" class="chip bc"></div>
+  <div id="bars">
+    <div class="bar"><i>FUEL</i><div class="fill fuel" id="fuelFill"></div></div>
+    <div class="bar"><i>BATT</i><div class="fill batt" id="battFill"></div></div>
+  </div>
+  <div id="board"></div>
+  <div id="prompt"></div>
+  <div id="toast"></div>
+  <div id="tray" class="hide">
+    <div id="trayBtns"></div>
+  </div>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
