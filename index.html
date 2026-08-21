@@ -4,21 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>VROOM</title>
-<link rel="stylesheet" href="./style.css?v=1787321761">
+<link rel="stylesheet" href="./style.css?v=1787323148">
 <script src="./js/vendor/supabase.js"></script>
 <!-- every module URL is stamped (?v=) by .git/hooks/pre-commit so a plain reload after a
      deploy never mixes new index.html with 10-minute-cached old JS/CSS (GitHub Pages max-age) -->
 <script type="importmap">
 { "imports": {
     "three": "./js/vendor/three.module.min.js",
-    "./js/main.js": "./js/main.js?v=1787321761",
-    "./js/machine.js": "./js/machine.js?v=1787321761",
-    "./js/parts.js": "./js/parts.js?v=1787321761",
-    "./js/guy.js": "./js/guy.js?v=1787321761",
-    "./js/art.js": "./js/art.js?v=1787321761",
-    "./js/net.js": "./js/net.js?v=1787321761",
-    "./js/voice.js": "./js/voice.js?v=1787321761",
-    "./js/world.js": "./js/world.js?v=1787321761"
+    "./js/main.js": "./js/main.js?v=1787323148",
+    "./js/machine.js": "./js/machine.js?v=1787323148",
+    "./js/parts.js": "./js/parts.js?v=1787323148",
+    "./js/guy.js": "./js/guy.js?v=1787323148",
+    "./js/art.js": "./js/art.js?v=1787323148",
+    "./js/net.js": "./js/net.js?v=1787323148",
+    "./js/voice.js": "./js/voice.js?v=1787323148",
+    "./js/world.js": "./js/world.js?v=1787323148",
+    "./js/ring.js": "./js/ring.js?v=1787323148"
 } }
 </script>
 </head>
@@ -62,9 +63,6 @@
   <div id="board"></div>
   <div id="prompt"></div>
   <div id="toast"></div>
-  <div id="tray" class="hide">
-    <div id="trayBtns"></div>
-  </div>
 </div>
 
 <!-- ================= the cursor (crisp, 90°, no smoothing) ================= -->
@@ -77,6 +75,6 @@
   </svg>
 </div>
 
-<script type="module" src="./js/main.js?v=1787321761"></script>
+<script type="module" src="./js/main.js?v=1787323148"></script>
 </body>
 </html>

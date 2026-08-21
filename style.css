@@ -62,7 +62,6 @@ button.big:active { transform: translateY(3px); border-bottom-width: 2px; }
 }
 #board div i { float: right; font-style: normal; color: #3f83b8; margin-left: 10px; }
 
-body:has(#tray:not(.hide)) #prompt { bottom: 104px; }
 #prompt {
   position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%);
   font-size: 14px; font-weight: 700; color: #fffdf6; text-shadow: 0 1px 0 #00000030;
@@ -87,28 +86,18 @@ body.playing, body.playing * { cursor: none !important; }
 body.playing #cur { display: block; }
 #cur.press { transform: translate(-50%, -50%) scale(.8); }
 
-/* ---------- build tray: the catalog. 90° angles, 10px outline, no smoothing ---------- */
-#tray { position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: center; padding: 10px; pointer-events: none; }
-#trayBtns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; pointer-events: auto; }
-.tbtn {
-  position: relative; width: 74px; height: 74px; padding: 0; overflow: hidden;
-  background: #f6f1e3; border: 10px solid #d8d2bf; border-radius: 0;
-  cursor: pointer; display: block;
+/* ---------- the catalog: concentric rings at the cursor ---------- */
+#ring { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 50; overflow: visible; }
+#ring path { stroke-width: 3; }
+#ring path.cat, #ring path.part { cursor: pointer; }
+#ring path.cat:hover, #ring path.part:hover { fill: #fffdf6; stroke: #5aa7e0; }
+#ring path.cat.open:hover { filter: brightness(1.08); }
+#ring path.dim { fill: #e9e3d2; stroke: #d0c9b4; }
+#ring image.dim { opacity: .45; }
+#ring path.held { stroke-width: 4; }
+#ring image { image-rendering: pixelated; image-rendering: crisp-edges; }
+#ring .hub { stroke-width: 3; }
+#ring .hubText {
+  text-anchor: middle; font-family: 'Trebuchet MS', system-ui, sans-serif;
+  font-size: 11px; font-weight: 800; letter-spacing: 1px; fill: #55503f; pointer-events: none;
 }
-.tbtn img {
-  display: block; width: 100%; height: 100%; object-fit: contain;
-  image-rendering: pixelated; image-rendering: crisp-edges; pointer-events: none;
-}
-.tbtn i {
-  position: absolute; left: 0; right: 0; bottom: 0; font-style: normal;
-  font-size: 9px; font-weight: 800; letter-spacing: 1px; line-height: 12px;
-  background: #d8d2bf; color: #55503f; text-align: center;
-}
-.tbtn b {
-  position: absolute; left: 0; top: 0; font-size: 10px; font-weight: 800; line-height: 12px;
-  padding: 0 4px; background: #3f83b8; color: #fffdf6;
-}
-.tbtn:hover { border-color: #c4bda6; }
-.tbtn:hover i { background: #c4bda6; }
-.tbtn.sel { border-color: #e8574f; background: #fffdf6; }
-.tbtn.sel i { background: #e8574f; color: #fffdf6; }

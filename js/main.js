@@ -3,6 +3,7 @@
    friends on one hand-made map, knock each other's wheels off, steal them.
    ============================================================================= */
 import * as THREE from 'three';
+import { makeRing } from './ring.js';
 import { PARTS, PART_ORDER, CELLXZ, CELLY, fpOf, localCenterOf, buildPartMesh, mat, shade } from './parts.js';
 import { makeMachine, starterLayout, serializeParts, loadParts, refresh, rebuildMesh,
          syncMesh, stepMachine, bumpMachines, shearParts, cellWorld, TUNE } from './machine.js';
@@ -203,12 +204,14 @@ function wireInput(){
         for(const m of G.machines.values()) rebuildMesh(m);
         if(G.me) fillGuyMesh(G.me.group, G.me.color);
         for(const [, g] of G.guys) fillGuyMesh(g.group, g.color);
-        renderTray();              // catalog icons show the new art too
+        ICONS.clear(); if(G.ring && G.ring.isOpen) G.ring.render();   // catalog icons show the new art too
         console.log('[art] reloaded:', loaded.join(', ') || '(none drawn yet)');
       });
     }
     if(G.mode === 'build'){
+      if(e.code === 'Escape' && G.ring) G.ring.close();
       if(e.code === 'KeyR'){ G.buildRot = (G.buildRot + 1) & 3; }
+      if(e.code === 'KeyX' && !(G.ring && G.ring.isOpen)) removePart();
       const idx = PART_ORDER.findIndex(t => PARTS[t].key === e.key);
       if(idx >= 0) selectPart(PART_ORDER[idx]);
     }
@@ -229,9 +232,10 @@ function wireInput(){
   cv.addEventListener('mousedown', e => {
     if(G.mode !== 'build') return;
     if(e.button === 0) placePart();
-    else if(e.button === 2) removePart();
+    else if(e.button === 1){ e.preventDefault(); removePart(); }
+    else if(e.button === 2) G.ring.toggle(e.clientX, e.clientY);   // the catalog lives at the cursor
   });
-  cv.addEventListener('contextmenu', e => e.preventDefault());
+  addEventListener('contextmenu', e => { if(document.body.classList.contains('playing')) e.preventDefault(); });
   cv.addEventListener('wheel', e => {
     G.camDist = THREE.MathUtils.clamp(G.camDist + e.deltaY * 0.02, 8, 42);
   });
@@ -443,26 +447,24 @@ function toggleBuild(){
   G.buildCamPos = target.pos.clone();
   G.mode = 'build';
   document.exitPointerLock && document.exitPointerLock();
-  $('#tray').classList.remove('hide');
-  renderTray();
+  if(!G.ring) G.ring = makeRing({ iconFor: partIcon, held: () => G.buildSel, onPick: selectPart });
   G.ghost = new THREE.Group(); G.scene.add(G.ghost);
 }
 function exitBuild(){
   const m = G.machines.get(G.buildTarget);
   if(m){ m.editing = false; m.grace = 1.5; refresh(m); rebuildMesh(m); if(!G.solo) sendBuilds(); }   // settle drop never shears
   G.mode = 'play';
-  $('#tray').classList.add('hide');
+  if(G.ring) G.ring.close();
   if(G.ghost){ G.scene.remove(G.ghost); G.ghost = null; }
   G.ghostCell = null;
   G.buildCamPos = null;
 }
-function selectPart(t){
-  G.buildSel = t;
-  [...document.querySelectorAll('.tbtn')].forEach(b => b.classList.toggle('sel', b.dataset.t === t));
-}
-/* the catalog: every part rendered top-down (ortho, no smoothing) into a tile */
+function selectPart(t){ G.buildSel = t; }
+/* part icons: every part rendered top-down (ortho, no smoothing), cached; T clears the cache */
 let iconR = null;
+const ICONS = new Map();
 function partIcon(type){
+  if(ICONS.has(type)) return ICONS.get(type);
   if(!iconR){
     iconR = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
     iconR.setSize(96, 96);
@@ -471,24 +473,13 @@ function partIcon(type){
   sc.add(new THREE.HemisphereLight(0xffffff, 0xcfe0b8, 1.15));
   const dl = new THREE.DirectionalLight(0xfff4d6, 0.5); dl.position.set(2, 5, 3); sc.add(dl);
   sc.add(buildPartMesh(type, 0));
-  const R = 0.55;                       // shared scale: a 1×1 LOOKS smaller than a 3×3
+  const R = 0.48;                       // shared scale: a 1×1 LOOKS smaller than a 3×3
   const cam = new THREE.OrthographicCamera(-R, R, R, -R, 0.1, 20);
   cam.up.set(0, 0, -1); cam.position.set(0, 6, 0); cam.lookAt(0, 0, 0);
   iconR.render(sc, cam);
-  return iconR.domElement.toDataURL();
-}
-function renderTray(){
-  const tray = $('#trayBtns'); tray.innerHTML = '';
-  for(const t of PART_ORDER){
-    const b = document.createElement('button');
-    b.className = 'tbtn' + (t === G.buildSel ? ' sel' : ''); b.dataset.t = t;
-    const img = new Image(); img.src = partIcon(t); img.draggable = false;
-    b.appendChild(img);
-    const tag = document.createElement('i'); tag.textContent = PARTS[t].label; b.appendChild(tag);
-    if(PARTS[t].key){ const kk = document.createElement('b'); kk.textContent = PARTS[t].key; b.appendChild(kk); }
-    b.onclick = () => selectPart(t);
-    tray.appendChild(b);
-  }
+  const url = iconR.domElement.toDataURL();
+  ICONS.set(type, url);
+  return url;
 }
 function setGhost(m, nc){
   G.ghostCell = { cell: nc };
@@ -503,6 +494,7 @@ function setGhost(m, nc){
 function buildHover(){
   const m = G.machines.get(G.buildTarget);
   if(!m || !G.ghost) return;
+  if(G.ring && G.ring.isOpen){ G.ghostCell = null; G.ghost.visible = false; return; }
   G.ghostCell = null;
   G.ghost.visible = false;
   ray.setFromCamera(mouse, G.camera);
@@ -719,7 +711,7 @@ function hud(drv, t){
     sp.style.display = 'none'; $('#bars').style.display = 'none'; lapEl.style.display = 'none';
     // context prompt
     let p = '';
-    if(G.mode === 'build') p = 'click add (middle = stack up, edge = sideways) · right-click remove · R rotate · Ctrl+G recenter · B done';
+    if(G.mode === 'build') p = 'right-click: catalog · click add (middle = stack up, edge = sideways) · X remove · R rotate · Ctrl+G recenter · B done';
     else {
       let nearSeat = false, nearDb = false;
       for(const m of G.machines.values()){
