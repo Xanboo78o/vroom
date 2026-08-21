@@ -3,23 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>VROOM</title>
-<link rel="stylesheet" href="./style.css?v=1787335811">
+<title>kRacing</title>
+<link rel="stylesheet" href="./style.css?v=1787343894">
 <script src="./js/vendor/supabase.js"></script>
 <!-- every module URL is stamped (?v=) by .git/hooks/pre-commit so a plain reload after a
      deploy never mixes new index.html with 10-minute-cached old JS/CSS (GitHub Pages max-age) -->
 <script type="importmap">
 { "imports": {
     "three": "./js/vendor/three.module.min.js",
-    "./js/main.js": "./js/main.js?v=1787335811",
-    "./js/machine.js": "./js/machine.js?v=1787335811",
-    "./js/parts.js": "./js/parts.js?v=1787335811",
-    "./js/guy.js": "./js/guy.js?v=1787335811",
-    "./js/art.js": "./js/art.js?v=1787335811",
-    "./js/net.js": "./js/net.js?v=1787335811",
-    "./js/voice.js": "./js/voice.js?v=1787335811",
-    "./js/world.js": "./js/world.js?v=1787335811",
-    "./js/ring.js": "./js/ring.js?v=1787335811"
+    "three/addons/": "./js/vendor/addons/",
+    "./js/main.js": "./js/main.js?v=1787343894",
+    "./js/machine.js": "./js/machine.js?v=1787343894",
+    "./js/parts.js": "./js/parts.js?v=1787343894",
+    "./js/guy.js": "./js/guy.js?v=1787343894",
+    "./js/art.js": "./js/art.js?v=1787343894",
+    "./js/net.js": "./js/net.js?v=1787343894",
+    "./js/voice.js": "./js/voice.js?v=1787343894",
+    "./js/world.js": "./js/world.js?v=1787343894",
+    "./js/ring.js": "./js/ring.js?v=1787343894",
+    "./js/palette.js": "./js/palette.js?v=1787343894",
+    "./js/gfx.js": "./js/gfx.js?v=1787343894",
+    "./js/postfx.js": "./js/postfx.js?v=1787343894",
+    "./js/light.js": "./js/light.js?v=1787343894",
+    "./js/tiles.js": "./js/tiles.js?v=1787343894",
+    "./js/cam.js": "./js/cam.js?v=1787343894",
+    "./js/skin.js": "./js/skin.js?v=1787343894",
+    "./js/paint.js": "./js/paint.js?v=1787343894",
+    "./js/props.js": "./js/props.js?v=1787343894",
+    "./js/critters.js": "./js/critters.js?v=1787343894"
 } }
 </script>
 </head>
@@ -29,7 +40,7 @@
 <!-- ================= menu ================= -->
 <div id="menu">
   <div class="card">
-    <h1>VROOM<span class="sub">build it · race it · lose a wheel</span></h1>
+    <h1 id="logo">kRacing<span class="sub">build it · race it · lose a wheel</span></h1>
     <input id="nm" maxlength="12" placeholder="your name" autocomplete="off">
     <button id="soloBtn" class="big go">SANDBOX (solo)</button>
     <div class="row">
@@ -60,6 +71,8 @@
     <div class="bar"><i>FUEL</i><div class="fill fuel" id="fuelFill"></div></div>
     <div class="bar"><i>BATT</i><div class="fill batt" id="battFill"></div></div>
   </div>
+  <button id="gfxChip" class="chip br" style="display:none">GFX</button>
+  <button id="camChip" class="chip br2" style="display:none">CAM · TOP</button>
   <div id="board"></div>
   <div id="prompt"></div>
   <div id="toast"></div>
@@ -75,6 +88,6 @@
   </svg>
 </div>
 
-<script type="module" src="./js/main.js?v=1787335811"></script>
+<script type="module" src="./js/main.js?v=1787343894"></script>
 </body>
 </html>

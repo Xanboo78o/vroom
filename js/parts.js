@@ -8,25 +8,21 @@
    ============================================================================= */
 import * as THREE from 'three';
 import { artTex } from './art.js';
+import { PAL, shade } from './palette.js';
+export { shade };
 
 export const CELLXZ = 0.3;               // fine grid step in x/z
 export const CELLY = 0.6;                // one build layer tall
 const C = 0.6;                           // geometry unit (a 2x2 part is C wide)
 
-// darker shade of a hex color (the no-black-outline rule)
-export function shade(hex, f = 0.78){
-  const r = ((hex >> 16) & 255) * f, g = ((hex >> 8) & 255) * f, b = (hex & 255) * f;
-  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
-}
-
 const MATS = new Map();
 export function mat(hex){
-  if(!MATS.has(hex)) MATS.set(hex, new THREE.MeshLambertMaterial({ color: hex }));
+  if(!MATS.has(hex)) MATS.set(hex, new THREE.MeshLambertMaterial({ color: hex, flatShading: true }));
   return MATS.get(hex);
 }
 const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 const LINE_MATS = new Map();
-function lineMat(hex){
+export function lineMat(hex){
   if(!LINE_MATS.has(hex)) LINE_MATS.set(hex, new THREE.LineBasicMaterial({ color: hex }));
   return LINE_MATS.get(hex);
 }
@@ -35,15 +31,17 @@ function lineMat(hex){
 export function vbox(w, h, d, hex, edgeF = 0.72){
   const g = new THREE.Group();
   const geo = new THREE.BoxGeometry(w, h, d);
-  g.add(new THREE.Mesh(geo, mat(hex)));
-  g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), lineMat(shade(hex, edgeF))));
+  const m = new THREE.Mesh(geo, mat(hex)); m.castShadow = m.receiveShadow = true; m.userData.hex = hex;
+  const l = new THREE.LineSegments(new THREE.EdgesGeometry(geo), lineMat(shade(hex, edgeF))); l.userData.hex = hex;
+  g.add(m, l);
   return g;
 }
 export function vcyl(r, len, hex, seg = 12, edgeF = 0.72){
   const g = new THREE.Group();
   const geo = new THREE.CylinderGeometry(r, r, len, seg);
-  g.add(new THREE.Mesh(geo, mat(hex)));
-  g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), lineMat(shade(hex, edgeF))));
+  const m = new THREE.Mesh(geo, mat(hex)); m.castShadow = m.receiveShadow = true; m.userData.hex = hex;
+  const l = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), lineMat(shade(hex, edgeF))); l.userData.hex = hex;
+  g.add(m, l);
   return g;
 }
 
@@ -193,8 +191,9 @@ export function buildPartMesh(type, rot = 0){
     const box = new THREE.Box3().setFromObject(g);
     const quad = new THREE.Mesh(
       new THREE.PlaneGeometry(fw * CELLXZ * 0.985, fd * CELLXZ * 0.985),
-      new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+      new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.5 })
     );
+    quad.receiveShadow = true;
     quad.rotation.set(-Math.PI / 2, 0, Math.PI);   // svg "up" = machine forward
     quad.position.y = box.max.y + 0.012;
     g.add(quad);
@@ -206,7 +205,7 @@ export function buildPartMesh(type, rot = 0){
   // (meshes are smaller than their footprint — without this the ray falls through to the layer below)
   const [fw, fd] = fpOf(type);
   const hit = new THREE.Mesh(new THREE.BoxGeometry(fw * CELLXZ, CELLY, fd * CELLXZ), HIT_MAT);
-  hit.name = 'hit';
+  hit.name = 'hit'; hit.castShadow = false;
   wrap.add(hit);
   return wrap;
 }

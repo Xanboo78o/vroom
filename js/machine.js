@@ -7,13 +7,14 @@
    ============================================================================= */
 import * as THREE from 'three';
 import { PARTS, CELLXZ, CELLY, fpOf, localCenterOf, buildPartMesh, facingDir } from './parts.js';
+import { applySkin, disposeSkin, copyPart, skinOf } from './skin.js';
 
 const G = 22;                    // gravity, tuned arcade-heavy
 const key = (x, y, z) => x + ',' + y + ',' + z;
 const CELL = CELLY;              // legacy uses (wheel sizes, spawn lifts)
 
 // every cell a part covers, from its anchor
-function* cellsOf(x, y, z, type){
+export function* cellsOf(x, y, z, type){
   const [w, d] = fpOf(type);
   for(let i = 0; i < w; i++) for(let j = 0; j < d; j++) yield [x + i, y, z + j];
 }
@@ -72,16 +73,17 @@ export function starterLayout(){
   return p;
 }
 
+/* wire format: [key, type, rot] + an optional 4th element {c,f,d} when the part is painted.
+   Old 3-tuples (saved builds, older peers) load fine; never index by length. */
 export function serializeParts(m){
-  return [...m.parts.entries()].map(([k, p]) => [k, p.type, p.rot]);
+  return [...m.parts.entries()].map(([k, p]) => { const sk = skinOf(p); return sk ? [k, p.type, p.rot, sk] : [k, p.type, p.rot]; });
 }
 export function loadParts(m, arr){
   m.parts.clear();
-  for(const [k, type, rot] of arr) m.parts.set(k, { type, rot });
+  for(const [k, type, rot, sk] of arr){ if(!PARTS[type]) continue; m.parts.set(k, copyPart({ type, rot, ...(sk || {}) })); }
   refresh(m);
 }
 
-/* ---- derived caches ------------------------------------------------------ */
 export function refresh(m){
   let mass = 0, engines = 0, motors = 0, fans = 0, freeFans = 0, wings = 0,
       tanks = 0, batts = 0;
@@ -358,12 +360,13 @@ export function cellWorld(m, k, out){
 /* ---- visuals ------------------------------------------------------------- */
 export function rebuildMesh(m){
   if(!m.group){ m.group = new THREE.Group(); m.group.userData.machine = m; }
-  while(m.group.children.length) m.group.remove(m.group.children[0]);
+  while(m.group.children.length){ const c = m.group.children[0]; disposeSkin(c); m.group.remove(c); }
   for(const [k, p] of m.parts){
     const [x, y, z] = k.split(',').map(Number);
     const mesh = buildPartMesh(p.type, p.rot);
     mesh.position.copy(localCenterOf(x, y, z, p.type)).sub(m.center);
     mesh.userData.cellKey = k;
+    applySkin(mesh, p);
     m.group.add(mesh);
   }
 }

@@ -577,3 +577,35 @@ here as we go. (Silly answers get incorporated too — they're canon.)
   along the left inside edge; and an OPTIONAL EXTRA SECTION (the triangular loop off the bottom
   right — "an extra area you can choose to do") = an alternate/longer route joined to the lap.
   This is the GP he draws; I author the other one (Q242).
+
+### R70 / PACK 70 (Adam's course rules)
+- Q278 Optional section: **room picks** (joker / free / always / never).
+- Q279 His course is **its own THIRD GP** (so: his GP + my fast one + my technical one).
+- Q280 Direction: **clockwise; start/finish in the middle of the straight that has the pit lane**
+  (the left side).
+- Q281 Course name: **"L8ter"** (his answer verbatim — working name until he renames).
+
+### R71 / PACK 71 (missed / banked / veto / tagline)
+- Q282 Missed: **"we should add literal BILLBOARDS that my art goes on"** — trackside advertising
+  boards (grandstands, straights, plaza) showing Adam's drawings / parody sponsor art; a simple
+  assets/billboards/ folder → boards pick from it.
+- Q283 Banked prizes: **still banked** (silly secret block + his daily modifier).
+- Q284 Veto: **saved for the lighting pass.**
+- Q285 Tagline: **"build it · race it · lose a wheel"** stays.
+
+### R72 / PACK 72 (priority / billboards / board art / lake) — marathon paused here ("make the first update")
+- Q286 After the lighting pass, the next THREE: **blocks flood, physics core, controls + config
+  panels + gamepad** (tracks/world after those).
+- Q287 Billboards stand: **along main straights, on grandstands, in Kris's Corner, small signs on the
+  rally stage / rock crawl — all.**
+- Q288 Board art: **his drawings (assets/billboards/ rotates through them), parody sponsors, and one
+  LIVE board in the plaza showing today's daily + leaderboard** (no friend uploads).
+- Q289 The lake: **Lake Tomathy.**
+
+## UPDATE 1 (started 2026-08-21): the LOOK + Kris's Corner + paint v1 + cameras
+Plan: `~/.claude/plans/make-the-firdst-update-purring-lobster.md` — Part A lighting/shadows/sky/
+ground/post-FX/palette/rename; Part B critters/billboards/paint+decals v1; Part C cameras (C cycles
+top-down → chase → FPS → free; his add-on: "also add camera in this update").
+**Shipped 2026-08-21 (milestone 1):** lighting/shadows/sky/tiles/kerbs/post-FX/presets/palette/
+rename, Kris's Corner (4 critters + Kris + statue + signs + billboards + grandstand + booth),
+paint + decals v1, cameras (top/chase/fps/free). See README "UPDATE 1".

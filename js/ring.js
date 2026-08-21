@@ -8,6 +8,7 @@
    Flat fills + darker-shade edges, icons pixelated (no smoothing).
    ============================================================================= */
 import { PARTS, PART_ORDER, CATS } from './parts.js';
+import { PAL, hex as phex } from './palette.js';
 
 const CAT_CAP = [6, 10, 14];          // slots per category ring
 const PART_CAP = [12, 16, 20, 24];    // slots per part ring (max 4 rings)
@@ -76,7 +77,7 @@ export function makeRing({ iconFor, held, onPick }){
         const a0 = i * step, a1 = a0 + step, mid = (a0 + a1) / 2, rm = (r0 + r1) / 2;
         const open = R.cat === c.id, dim = R.cat && !open;
         const p = el('path', { d: sector(r0, r1, a0, a1), class: 'cat' + (open ? ' open' : '') + (dim ? ' dim' : ''),
-          fill: open ? hex(c.color) : '#f6f1e3', stroke: open ? shade(c.color, .72) : '#d8d2bf' });
+          fill: open ? hex(c.color) : phex(PAL.cream), stroke: open ? shade(c.color, .72) : phex(PAL.border) });
         // colour band on the inner edge says "this is a category"
         const band = el('path', { d: sector(r0, r0 + 8, a0, a1), fill: hex(c.color), stroke: 'none', 'pointer-events': 'none' });
         const hero = PART_ORDER.find(t => PARTS[t].cat === c.id);
@@ -97,7 +98,7 @@ export function makeRing({ iconFor, held, onPick }){
         const a0 = i * step, a1 = a0 + step, mid = (a0 + a1) / 2, rm = (r0 + r1) / 2;
         const isHeld = t === held();
         const p = el('path', { d: sector(r0, r1, a0, a1), class: 'part' + (isHeld ? ' held' : ''),
-          fill: isHeld ? '#fffdf6' : '#f6f1e3', stroke: isHeld ? hex(cat.color) : '#d8d2bf' });
+          fill: isHeld ? phex(PAL.paper) : phex(PAL.cream), stroke: isHeld ? hex(cat.color) : phex(PAL.border) });
         const sz = BAND - 10;
         const ic = el('image', { x: Math.sin(mid) * rm - sz / 2, y: -Math.cos(mid) * rm - sz / 2, width: sz, height: sz, href: iconFor(t), 'pointer-events': 'none' });
         p.addEventListener('mouseenter', () => setHover(PARTS[t].label));
@@ -109,7 +110,7 @@ export function makeRing({ iconFor, held, onPick }){
     });
 
     // hub: what you're holding / what you're hovering
-    const hub = el('circle', { r: HUB, class: 'hub', fill: '#f6f1e3', stroke: '#d8d2bf' });
+    const hub = el('circle', { r: HUB, class: 'hub', fill: phex(PAL.cream), stroke: phex(PAL.border) });
     g.append(hub, hubIcon, hubText);
   }
 

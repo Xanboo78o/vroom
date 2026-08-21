@@ -34,8 +34,9 @@ export function fillGuyMesh(g, color){
   if(tex){
     const quad = new THREE.Mesh(
       new THREE.PlaneGeometry(1.8, 1.8),
-      new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+      new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.5 })
     );
+    quad.castShadow = true; quad.receiveShadow = true;
     quad.rotation.x = -Math.PI / 2;
     quad.position.y = 0.5;                 // floats a touch: reads over machines
     g.add(quad);

@@ -1,5 +1,5 @@
 /* =============================================================================
-   main.js — VROOM (working title). Build machines out of Lego parts, race your
+   main.js — kRacing (was VROOM). Build machines out of Lego parts, race your
    friends on one hand-made map, knock each other's wheels off, steal them.
    ============================================================================= */
 import * as THREE from 'three';
@@ -12,10 +12,18 @@ import { makeGuy, stepGuy, syncRemoteGuy, eject, fillGuyMesh } from './guy.js';
 import { loadArt } from './art.js';
 import { NET, makeCode } from './net.js';
 import { VOICE } from './voice.js';
+import { PAL, GUY_COLORS } from './palette.js';
+import { GFX, initGfx, cycleTier, sampleFrame, tierLabel } from './gfx.js';
+import { buildPostFX, renderFrame, resizePostFX } from './postfx.js';
+import { DAY, initLight, updateLight, nudgeTime, setShadowCfg, loadSky } from './light.js';
+import { reloadTiles } from './tiles.js';
+import { CAM, updateCam, cycleCam, camLabel, kick as camKick } from './cam.js';
+import { PAINT, initPaint, setPaint, paintHover, paintDown, paintUp, paintStrip, rotateDecal, scaleDecal, dropDecal, stampDecal } from './paint.js';
+import { reloadBillboards } from './props.js';
+import { copyPart, applySkin } from './skin.js';
 
 const $ = s => document.querySelector(s);
 const key = (x, y, z) => x + ',' + y + ',' + z;
-const GUY_COLORS = [0xe8574f, 0x5aa7e0, 0x46c2a5, 0xe0c23e, 0x9b6fd6, 0xe8804f, 0x6fd6d0, 0x92bd63];
 
 const G = {
   scene: null, camera: null, renderer: null,
@@ -23,32 +31,66 @@ const G = {
   mode: 'menu', solo: true,
   camYaw: 0, camDist: 14,          // camDist = camera height (top-down)
   buildCamPos: null,               // frozen view point while building (Ctrl+G re-centers)
-  shad: new Map(),
   input: {},
   buildSel: 'frame', buildRot: 0, buildTarget: null, ghost: null, ghostCell: null,
   carried: [],
   roomCfg: { repair: 'any' },
   lap: { next: -1, t0: 0, last: 0, best: 0 },
   board: new Map(),
-  sendT: 0, debrisN: 1,
+  sendT: 0, debrisN: 1, paintT: 0, mouseDelta: { x: 0, y: 0 },
 };
-window.VR = { G, NET, TUNE, WORLD, VOICE };            // debug handle
+window.VR = { G, NET, TUNE, WORLD, VOICE, DAY, GFX, CAM, PAINT };  // debug handle
+window.KR = window.VR;
 
 /* ---- boot ---------------------------------------------------------------- */
 function boot(){
   G.renderer = new THREE.WebGLRenderer({ canvas: $('#c'), antialias: true });
   G.renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+  initGfx(G.renderer);
+  G.renderer.shadowMap.enabled = true;
+  G.renderer.shadowMap.type = THREE.PCFShadowMap;
   G.scene = new THREE.Scene();
   G.camera = new THREE.PerspectiveCamera(64, 1, 0.1, 900);
   onResize(); addEventListener('resize', onResize);
-  buildWorld(G.scene);
+  buildWorld(G.scene, G.renderer);
+  initLight(G.scene, GFX.cfg);
+  applyGfx(GFX.cfg);
+  GFX.onChange = applyGfx;
+  $('#gfxChip').onclick = () => cycleTier();
+  $('#camChip').onclick = () => { cycleCam(); $('#camChip').textContent = camLabel(); };
+  initPaint(G.scene);
   wireInput(); wireMenu(); wireNet();
+  window.VR.dbg = { serializeParts, loadParts, rebuildMesh, onImpact, sendBuilds, stampDecal, copyPart };
+  probeLogo();
   requestAnimationFrame(loop);
 }
 function onResize(){
   G.renderer.setSize(innerWidth, innerHeight);
   G.camera.aspect = innerWidth / innerHeight;
   G.camera.updateProjectionMatrix();
+  resizePostFX();
+}
+// graphics preset → shadow map size/type, post pipeline, every material recompiles
+function applyGfx(cfg){
+  G.renderer.shadowMap.type = THREE.PCFShadowMap;   // (PCFSoft is deprecated in r185)
+  G.renderer.shadowMap.needsUpdate = true;
+  setShadowCfg(cfg);
+  buildPostFX(G.renderer, G.scene, G.camera, cfg);
+  G.scene.traverse(o => { if(o.material){ const ms = Array.isArray(o.material) ? o.material : [o.material]; for(const m of ms) m.needsUpdate = true; } });
+  const chip = $('#gfxChip'); if(chip) chip.textContent = tierLabel();
+}
+// Adam's logo: assets/logo.svg replaces the text title + becomes the favicon
+function probeLogo(){
+  const img = new Image();
+  img.onload = () => {
+    const h1 = $('#logo'); if(!h1) return;
+    const sub = h1.querySelector('.sub');
+    h1.innerHTML = ''; img.alt = 'kRacing'; img.id = 'logoImg'; h1.appendChild(img); if(sub) h1.appendChild(sub);
+    let link = document.querySelector('link[rel=icon]');
+    if(!link){ link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+    link.href = img.src;
+  };
+  img.src = './assets/logo.svg?t=' + Date.now();
 }
 
 /* ---- menu ---------------------------------------------------------------- */
@@ -94,6 +136,8 @@ async function startGame(opt){
   document.body.classList.add('playing');        // native cursor off, fun cursor on
   $('#menu').classList.add('hide');
   $('#hud').classList.remove('hide');
+  $('#gfxChip').style.display = 'block'; $('#gfxChip').textContent = tierLabel();
+  $('#camChip').style.display = 'block'; $('#camChip').textContent = camLabel();
   if(!G.solo){ NET.send('hi', {}); sendBuilds(); }
   toast(G.solo ? 'sandbox — your machine is parked ahead' : 'room ' + NET.code + ' — bring friends');
 }
@@ -170,11 +214,12 @@ function wireNet(){
 }
 function myPid(){ return G.solo ? 'solo' : NET.me; }
 function simOwner(m){ return m.driver || m.owner; }
+function sendBuild(m){
+  NET.send('build', { mid: m.id, owner: m.owner, parts: serializeParts(m),
+    p: m.pos.toArray(), q: m.quat.toArray(), fuel: m.fuel, batt: m.batt });
+}
 function sendBuilds(){
-  for(const m of G.machines.values()) if(m.owner === myPid()){
-    NET.send('build', { mid: m.id, owner: m.owner, parts: serializeParts(m),
-      p: m.pos.toArray(), q: m.quat.toArray(), fuel: m.fuel, batt: m.batt });
-  }
+  for(const m of G.machines.values()) if(m.owner === myPid()) sendBuild(m);
 }
 function sendGuy(force){
   if(G.solo || !G.me) return;
@@ -184,10 +229,12 @@ function sendGuy(force){
 /* ---- input --------------------------------------------------------------- */
 const KEYMAP = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down',
   KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right',
-  ShiftLeft: 'run', ShiftRight: 'run', Space: 'jump' };
+  ShiftLeft: 'run', ShiftRight: 'run', Space: 'jump', ControlLeft: 'crouch',
+  KeyQ: 'lookL', KeyZ: 'lookR' };
 function wireInput(){
   addEventListener('keydown', e => {
     if(G.mode === 'menu') return;
+    if(e.target && e.target.tagName === 'INPUT') return;     // typing a decal, not driving
     if(e.ctrlKey && e.code === 'KeyG'){      // re-center the build view
       e.preventDefault();
       const m = G.machines.get(G.buildTarget);
@@ -198,6 +245,7 @@ function wireInput(){
     if(e.code === 'KeyE') actionSeat();
     if(e.code === 'KeyF') actionGrab();
     if(e.code === 'KeyB') toggleBuild();
+    if(e.code === 'KeyC' && !e.ctrlKey && G.mode === 'play'){ cycleCam(); $('#camChip').textContent = camLabel(); }
     if(e.code === 'KeyM' && VOICE.on) $('#vcBtn').textContent = VOICE.toggleMute() ? '🔇 VC' : '🎙 VC';
     if(e.code === 'KeyT'){         // hot-reload Adam's art
       loadArt().then(loaded => {
@@ -207,38 +255,53 @@ function wireInput(){
         ICONS.clear(); if(G.ring && G.ring.isOpen) G.ring.render();   // catalog icons show the new art too
         console.log('[art] reloaded:', loaded.join(', ') || '(none drawn yet)');
       });
+      reloadTiles(); loadSky(); probeLogo(); reloadBillboards();
+    }
+    if(e.code === 'BracketLeft' || e.code === 'BracketRight'){   // tune the hour
+      const h = nudgeTime(e.code === 'BracketRight' ? 0.5 : -0.5);
+      console.log('[kRacing] time of day', h.toFixed(1) + 'h');
     }
     if(G.mode === 'build'){
-      if(e.code === 'Escape' && G.ring) G.ring.close();
-      if(e.code === 'KeyR'){ G.buildRot = (G.buildRot + 1) & 3; }
-      if(e.code === 'KeyX' && !(G.ring && G.ring.isOpen)) removePart();
+      const bm = G.machines.get(G.buildTarget);
+      if(e.code === 'Escape'){
+        if(G.ring && G.ring.isOpen) G.ring.close();
+        else if(!dropDecal() && PAINT.on) setPaint(false);
+      }
+      if(e.code === 'KeyP') setPaint(!PAINT.on);
+      if(e.code === 'KeyR'){ if(!(PAINT.on && rotateDecal())) G.buildRot = (G.buildRot + 1) & 3; }
+      if(e.code === 'KeyX' && !(G.ring && G.ring.isOpen)){ if(PAINT.on) paintStrip(bm); else removePart(); }
       const idx = PART_ORDER.findIndex(t => PARTS[t].key === e.key);
       if(idx >= 0) selectPart(PART_ORDER[idx]);
     }
     if(e.code === 'Space' && G.mode === 'play') e.preventDefault();
   });
-  addEventListener('keyup', e => { if(KEYMAP[e.code]) G.input[KEYMAP[e.code]] = false; });
+  addEventListener('keyup', e => { if(e.target && e.target.tagName === 'INPUT') return; if(KEYMAP[e.code]) G.input[KEYMAP[e.code]] = false; });
 
   const cv = $('#c');
   const cur = $('#cur');
   addEventListener('mousemove', e => {
+    if(document.pointerLockElement === cv){ G.mouseDelta.x += e.movementX; G.mouseDelta.y += e.movementY; return; }
     mouse.x = (e.clientX / innerWidth) * 2 - 1;
     mouse.y = -(e.clientY / innerHeight) * 2 + 1;
     cur.style.left = e.clientX + 'px';
     cur.style.top = e.clientY + 'px';
   });
   addEventListener('mousedown', () => cur.classList.add('press'));
-  addEventListener('mouseup', () => cur.classList.remove('press'));
+  addEventListener('mouseup', () => { cur.classList.remove('press'); paintUp(); });
   cv.addEventListener('mousedown', e => {
+    if(G.mode === 'play' && CAM.mode === 'free' && e.button === 2){ cv.requestPointerLock && cv.requestPointerLock(); return; }
     if(G.mode !== 'build') return;
-    if(e.button === 0) placePart();
-    else if(e.button === 1){ e.preventDefault(); removePart(); }
+    const bm = G.machines.get(G.buildTarget);
+    if(e.button === 0){ if(PAINT.on) paintDown(bm, e.shiftKey); else placePart(); }
+    else if(e.button === 1){ e.preventDefault(); if(PAINT.on) paintStrip(bm); else removePart(); }
     else if(e.button === 2) G.ring.toggle(e.clientX, e.clientY);   // the catalog lives at the cursor
   });
   addEventListener('contextmenu', e => { if(document.body.classList.contains('playing')) e.preventDefault(); });
   cv.addEventListener('wheel', e => {
+    if(PAINT.on && PAINT.dec){ e.preventDefault(); scaleDecal(e.deltaY); return; }
+    if(G.mode === 'play' && CAM.mode === 'chase'){ CAM.dist = THREE.MathUtils.clamp(CAM.dist + e.deltaY * 0.01, 5, 16); return; }
     G.camDist = THREE.MathUtils.clamp(G.camDist + e.deltaY * 0.02, 8, 42);
-  });
+  }, { passive: false });
   $('#vcBtn').onclick = () => { $('#vcBtn').textContent = VOICE.toggleMute() ? '🔇 VC' : '🎙 VC'; };
 }
 
@@ -293,13 +356,14 @@ function onImpact(m, J, at){
   const list = [];
   for(const c of shed){
     const wp = cellWorld(m, c.k);
-    const db = { did: myPid() + ':' + (G.debrisN++), type: c.p.type, rot: c.p.rot,
+    const db = { did: myPid() + ':' + (G.debrisN++), ...copyPart(c.p),
       p: wp.toArray(), v: [m.vel.x * 0.5 + rnd(4), 5 + rnd(3), m.vel.z * 0.5 + rnd(4)],
       home: { mid: m.id, k: c.k } };
     list.push(db); spawnDebris(db, true);
   }
   if(!G.solo) NET.send('shear', { mid: m.id, cells: shed.map(c => [c.k]), debris: list });
   toast('-' + shed.map(c => PARTS[c.p.type].label).join(', -'));
+  if(G.me.inMachine === m.id) camKick(J);
   // seat gone while I'm in it → YEET
   if(G.me.inMachine === m.id && !m.seatKey){
     eject(G.me, m.pos.clone().add(new THREE.Vector3(0, m.half.y + 1, 0)));
@@ -313,6 +377,7 @@ const rnd = s => (Math.random() - 0.5) * s;
 function spawnDebris(db, local){
   if(G.debris.has(db.did)) return;
   const mesh = buildPartMesh(db.type, db.rot);
+  applySkin(mesh, db);
   mesh.position.fromArray(db.p);
   G.scene.add(mesh);
   G.debris.set(db.did, { ...db, mesh,
@@ -335,33 +400,6 @@ function stepDebris(dt){
   }
 }
 
-/* ---- blob shadows: the depth cue that sells jumps from above -------------- */
-const SHAD_GEO = new THREE.CircleGeometry(1, 18);
-function updateShadows(){
-  for(const s of G.shad.values()) s.userData.used = false;
-  const put = (id, x, z, y, r) => {
-    let s = G.shad.get(id);
-    if(!s){
-      s = new THREE.Mesh(SHAD_GEO, new THREE.MeshBasicMaterial({ color: 0x233618, transparent: true, opacity: 0.24, depthWrite: false }));
-      s.rotation.x = -Math.PI / 2;
-      G.scene.add(s); G.shad.set(id, s);
-    }
-    s.userData.used = true;
-    const gy = WORLD.h(x, z);
-    const lift = Math.max(0, y - gy);
-    const k = THREE.MathUtils.clamp(1 - lift * 0.05, 0.45, 1);
-    s.position.set(x, gy + 0.055, z);
-    s.scale.setScalar(r * (0.7 + 0.3 * k));
-    s.material.opacity = 0.26 * k;
-  };
-  for(const m of G.machines.values()) if(m.parts.size)
-    put('m:' + m.id, m.pos.x, m.pos.z, m.pos.y - m.half.y, Math.max(0.8, m.radius * 0.9));
-  if(G.me && !G.me.inMachine) put('me', G.me.pos.x, G.me.pos.z, G.me.pos.y, 0.5);
-  for(const [pid, g] of G.guys) if(!g.inMachine) put('g:' + pid, g.pos.x, g.pos.z, g.pos.y, 0.5);
-  for(const db of G.debris.values()) put('d:' + db.did, db.pos.x, db.pos.z, db.pos.y, 0.42);
-  for(const [id, s] of G.shad) if(!s.userData.used){ G.scene.remove(s); G.shad.delete(id); }
-}
-
 function actionGrab(){
   if(!G.me || G.me.inMachine) return;
   // carrying parts + near my machine → bolt them back on
@@ -376,7 +414,7 @@ function actionGrab(){
     const c0 = myM.center.clone();
     G.carried = G.carried.filter(c => {
       if(c.home && c.home.mid === myM.id && !myM.parts.has(c.home.k)){
-        myM.parts.set(c.home.k, { type: c.type, rot: c.rot }); n++; return false;
+        myM.parts.set(c.home.k, copyPart(c)); n++; return false;
       }
       return true;
     });
@@ -398,12 +436,12 @@ function actionGrab(){
   const mine = home && home.owner === myPid();
   if(mine && home.pos.distanceTo(G.me.pos) < 9 && !home.parts.has(best.home.k) && repairOK(home.pos)){
     const c0 = home.center.clone();
-    home.parts.set(best.home.k, { type: best.type, rot: best.rot });
+    home.parts.set(best.home.k, copyPart(best));
     refresh(home); anchorFix(home, c0); rebuildMesh(home);
     toast(PARTS[best.type].label + ' back on!');
     if(!G.solo){ NET.send('grab', { did: best.did }); sendBuilds(); }
   } else {
-    G.carried.push({ type: best.type, rot: best.rot, home: best.home });
+    G.carried.push({ ...copyPart(best), home: best.home });
     const theirs = home && home.owner !== myPid();
     toast('carrying ' + PARTS[best.type].label + (theirs ? ' (STOLEN 😈)' : ' — F at your machine to bolt it on'));
     if(!G.solo) NET.send('grab', { did: best.did });
@@ -454,12 +492,13 @@ function exitBuild(){
   const m = G.machines.get(G.buildTarget);
   if(m){ m.editing = false; m.grace = 1.5; refresh(m); rebuildMesh(m); if(!G.solo) sendBuilds(); }   // settle drop never shears
   G.mode = 'play';
+  setPaint(false);
   if(G.ring) G.ring.close();
   if(G.ghost){ G.scene.remove(G.ghost); G.ghost = null; }
   G.ghostCell = null;
   G.buildCamPos = null;
 }
-function selectPart(t){ G.buildSel = t; }
+function selectPart(t){ G.buildSel = t; setPaint(false); }
 /* part icons: every part rendered top-down (ortho, no smoothing), cached; T clears the cache */
 let iconR = null;
 const ICONS = new Map();
@@ -485,7 +524,7 @@ function setGhost(m, nc){
   G.ghostCell = { cell: nc };
   while(G.ghost.children.length) G.ghost.remove(G.ghost.children[0]);
   const gm = buildPartMesh(G.buildSel, G.buildRot);
-  gm.traverse(ob => { if(ob.material){ ob.material = ob.material.clone(); ob.material.transparent = true; ob.material.opacity = 0.55; } });
+  gm.traverse(ob => { ob.castShadow = false; if(ob.material){ ob.material = ob.material.clone(); ob.material.transparent = true; ob.material.opacity = 0.55; } });
   G.ghost.add(gm);
   G.ghost.position.copy(localCenterOf(nc[0], nc[1], nc[2], G.buildSel).sub(m.center).applyQuaternion(m.quat).add(m.pos));
   G.ghost.quaternion.copy(m.quat);
@@ -600,10 +639,11 @@ let last = 0;
 function loop(t){
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
-  if(G.mode === 'menu' || !G.me){ G.renderer.render(G.scene, G.camera); return; }
+  if(G.mode === 'menu' || !G.me){ camera(dt, null); renderFrame(dt, null); return; }
 
   const drv = drivenMachine();
-  if(drv){
+  const freeCam = G.mode === 'play' && CAM.mode === 'free';
+  if(drv && !freeCam){
     drv.throttle = (G.input.up ? 1 : 0) + (G.input.down ? -0.6 : 0);
     drv.steer = (G.input.left ? -1 : 0) + (G.input.right ? 1 : 0);
     drv.boosting = !!G.input.run;
@@ -618,7 +658,7 @@ function loop(t){
       for(const o of G.machines.values()) if(o !== m) bumpMachines(m, o, onImpact);
     }
   }
-  if(G.mode === 'play') stepGuy(G.me, WORLD, G.input, G.camYaw, dt, mouseAim());
+  if(G.mode === 'play') stepGuy(G.me, WORLD, freeCam ? {} : G.input, G.camYaw, dt, freeCam ? null : mouseAim());
   else if(G.mode === 'build'){   // guy stands by while building
     G.me.group.visible = !G.me.inMachine;
     G.me.group.position.copy(G.me.pos);
@@ -626,7 +666,7 @@ function loop(t){
   for(const [pid, g] of G.guys) syncRemoteGuy(g, dt);
   for(const m of G.machines.values()) syncMesh(m, dt);
   stepDebris(dt);
-  updateShadows();
+  for(const a of WORLD.anim) a.update(t / 1000, dt);
 
   // driving extras: lap timing, pit refuel, guy rides along
   if(drv){
@@ -639,8 +679,15 @@ function loop(t){
       if(drv.fuel > before) pitFlash(t);
     }
   }
-  if(G.mode === 'build') buildHover();
+  if(G.mode === 'build'){ if(PAINT.on) paintHover(G.machines.get(G.buildTarget), (ray.setFromCamera(mouse, G.camera), ray), !!G.input.run); else buildHover(); }
+  if(G.mode === 'play' && CAM.mode === 'fps' && !G.me.inMachine) G.me.group.visible = false;
+  if(!G.solo && PAINT.dirty.size && t - G.paintT > 500){
+    G.paintT = t;
+    for(const id of PAINT.dirty){ const pm = G.machines.get(id); if(pm && pm.owner === myPid()) sendBuild(pm); }
+    PAINT.dirty.clear();
+  }
 
+  camLookInput();
   camera(dt, drv);
   hud(drv, t);
 
@@ -657,7 +704,22 @@ function loop(t){
       }
     }
   }
-  G.renderer.render(G.scene, G.camera);
+  sampleFrame(dt);
+  renderFrame(dt, blurCtx(drv));
+}
+// screen-space velocity of the driven machine, for the directional speed blur
+const _bp = new THREE.Vector3(), _bq = new THREE.Vector3(), _bd = new THREE.Vector2();
+function blurCtx(drv){
+  if(!drv) return null;
+  const sp = drv.vel.length();
+  if(sp < 6) return { speed: sp, dir: null };
+  _bp.copy(drv.pos).project(G.camera);
+  _bq.copy(drv.pos).add(drv.vel).project(G.camera);
+  _bd.set(_bq.x - _bp.x, _bq.y - _bp.y);
+  if(_bd.lengthSq() < 1e-8) return { speed: sp, dir: null };
+  _bd.normalize(); _bd.y *= innerHeight / innerWidth;    // dir in UV space (aspect-corrected)
+  _bd.normalize();
+  return { speed: sp, dir: _bd };
 }
 
 /* the ground point under the cursor, as a walk direction from the guy */
@@ -672,7 +734,7 @@ function mouseAim(){
   return L > 0.5 ? { x: dx / L, z: dz / L } : null;   // dead zone on top of the guy
 }
 
-/* ---- camera: fixed top-down, north up ------------------------------------- */
+/* ---- camera: top-down by default; C cycles chase / fps / free (cam.js) --------- */
 const camT = new THREE.Vector3();
 function camera(dt, drv){
   let focus, H = G.camDist;
@@ -683,14 +745,17 @@ function camera(dt, drv){
     H = Math.min(H, 16);
   } else if(drv){
     focus = drv.pos;
-    H = G.camDist + drv.vel.length() * 0.45;     // zoom out a bit at speed
-  } else focus = G.me.pos;
-
+    H = G.camDist + (CAM.pullback ? drv.vel.length() * 0.45 : 0);     // zoom out a bit at speed
+  } else focus = G.me ? G.me.pos : WORLD.spawn;
   camT.lerp(focus, Math.min(1, dt * 8));
-  G.camera.up.set(0, 0, -1);
-  G.camera.position.set(camT.x, camT.y + H, camT.z);
-  G.camera.lookAt(camT.x, camT.y, camT.z);
+  const seatPos = drv && drv.seatKey ? cellWorld(drv, drv.seatKey) : null;
+  const out = updateCam({ camera: G.camera, dt, mode: G.mode, drv, guy: G.me || { pos: WORLD.spawn, yaw: 0 }, focus: camT, H,
+    seatPos, input: G.input, mouseDelta: G.mouseDelta, pointerLocked: document.pointerLockElement === $('#c'), WORLD });
+  G.mouseDelta.x = 0; G.mouseDelta.y = 0;
+  updateLight(out.focus, out.reach, G.camera);
 }
+// free cam / chase look keys
+function camLookInput(){ CAM.look = (G.input.lookL && G.input.lookR) ? 2 : G.input.lookL ? -1 : G.input.lookR ? 1 : 0; }
 
 /* ---- hud ------------------------------------------------------------------ */
 let lastPitFlash = 0;
@@ -711,7 +776,12 @@ function hud(drv, t){
     sp.style.display = 'none'; $('#bars').style.display = 'none'; lapEl.style.display = 'none';
     // context prompt
     let p = '';
-    if(G.mode === 'build') p = 'right-click: catalog · click add (middle = stack up, edge = sideways) · X remove · R rotate · Ctrl+G recenter · B done';
+    if(G.mode === 'build'){
+      p = PAINT.on
+        ? (PAINT.dec ? 'DECAL — click stamp (top faces) · scroll size · R rotate · X undo · Esc drop'
+                     : 'PAINT — click block · Shift-click face · hold spray · X strip · P/Esc done')
+        : 'right-click: catalog · click add (middle = stack up, edge = sideways) · X remove · R rotate · P paint · Ctrl+G recenter · B done';
+    }
     else {
       let nearSeat = false, nearDb = false;
       for(const m of G.machines.values()){
@@ -731,7 +801,7 @@ function hud(drv, t){
 }
 function prompt(s){ const el = $('#prompt'); if(el.textContent !== s) el.textContent = s; }
 // no toasts — pure Trailmakers, the world shows what happened (Adam's ruling)
-function toast(s){ console.log('[vroom]', s); }
+function toast(s){ console.log('[kRacing]', s); }
 function renderPeers(){
   const names = [...NET.peers.values()].map(p => p.name);
   $('#peers').textContent = names.join(' · ');

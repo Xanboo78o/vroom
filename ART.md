@@ -18,3 +18,10 @@ shown as the TOP FACE of that part on every machine.
   canvas — that's "forward". R in the builder rotates them.
 - Transparent background = the 3D part shows around your art. Solid = fully yours.
 - `guy.svg` and `wheel.svg` already have placeholder art — overwrite them.
+
+## UPDATE 1 additions (all hot-reload with T)
+- `assets/logo.svg` — the kRacing logo (menu title + favicon).
+- `assets/sky/{dawn,noon,golden,dusk,night}.png` — painted sky domes (equirect, 2:1). Nearest to the hour wins.
+- `assets/tiles/{asphalt,shoulder,grass,sand,gravel,kerb}.png` — tileable ground textures (the material goes white; your tile carries the colour).
+- `assets/billboards/*.png|svg` + `assets/billboards/list.json` — trackside billboard art (512×256 looks best; anything is letterboxed).
+- Critters/props are 3D primitives in `js/critters.js` / `js/props.js` — colours come from `js/palette.js`.
