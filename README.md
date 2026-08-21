@@ -21,3 +21,6 @@ shift-drag orbit) · F grab/bolt parts · Shift boost · M mute VC
 ## Netcode
 Supabase Realtime rooms (4-letter codes) + WebRTC voice mesh — recipes from the
 shooter project and Foglast's ProxyChat.
+
+## Deploy note
+`.git/hooks/pre-commit` stamps `?v=<epoch>` onto every module/CSS URL in index.html, so a plain reload right after a push gets a consistent new build (GitHub Pages caches assets 10 min). If the hook is missing (fresh clone), copy it back from this note: `sed -i -E "s/\?v=[0-9]+/?v=$(date +%s)/g" index.html` before committing.
