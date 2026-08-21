@@ -37,7 +37,7 @@ export function paddockPoint(t){            // t in [0,1) around the loop, start
 
 export const TRACKS = [
   { id: 'paddock', name: 'PADDOCK GP', color: PAL.blueDark, type: 'gp', closed: true, width: TRK.w, surface: 'asphalt', analytic: true },
-  { id: 'l8ter', name: 'L8TER', color: PAL.red, type: 'gp', closed: true, width: 13, surface: 'asphalt',
+  { id: 'l8ter', name: 'L8TER', color: PAL.red, type: 'gp', closed: true, width: 18, surface: 'asphalt',
     pts: L8TER.loop, startIdx: L8TER.startIdx, pit: L8TER.pit, extra: L8TER.extra },
   { id: 'switchback', name: 'SWITCHBACK GP', color: PAL.blue, type: 'gp', closed: true, width: 12, surface: 'asphalt',
     pts: [[-560, -170], [-430, -170], [-380, -150], [-350, -110], [-340, -80], [-360, -58], [-400, -70], [-440, -90], [-470, -62],
