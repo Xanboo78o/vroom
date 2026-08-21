@@ -24,7 +24,7 @@ All the art is SVG — see `ART.md` — Adam draws it, the game hot-reloads it (
 ## Controls
 WASD / arrows drive (on foot: W walks toward the mouse, S away, A/D strafe) · Space jump ·
 E hop in/out · B build (right-click = the ring catalog, click add, X / middle remove, R rotate,
-Ctrl+G recenter the build view) · F grab/bolt parts · Shift boost (or run) · wheel zoom · M mute VC · T reload art
+Ctrl+G recenter the build view) · F grab/bolt parts · Q full repair · Shift boost (or run) · wheel zoom · M mute VC · T reload art
 
 ## Netcode
 Supabase Realtime rooms (4-letter codes) + WebRTC voice mesh — recipes from the

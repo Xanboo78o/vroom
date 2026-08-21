@@ -43,7 +43,7 @@ function boot(){
   onResize(); addEventListener('resize', onResize);
   buildWorld();
   wireInput(); wireMenu(); wireNet();
-  window.KR.dbg = { serializeParts, loadParts, onImpact, sendBuilds, teleportTo, toggleBuild, placePart, removePart, selectPart, actionSeat, actionGrab, exitBuild };
+  window.KR.dbg = { serializeParts, loadParts, onImpact, sendBuilds, teleportTo, toggleBuild, placePart, removePart, selectPart, actionSeat, actionGrab, actionRepair, exitBuild };
   probeLogo();
   requestAnimationFrame(loop);
 }
@@ -103,7 +103,7 @@ async function startGame(opt){
   G.me.x = WORLD.spawn.x; G.me.y = WORLD.spawn.y;
   const spot = WORLD.parking[hash(pid) % WORLD.parking.length];
   const m = makeMachine(pid, spot.x, spot.y);
-  m.parts = starterLayout(); refresh(m);
+  m.parts = starterLayout(); refresh(m); snapshotBlue(m);
   G.machines.set(m.id, m);
   G.cam.x = G.me.x; G.cam.y = G.me.y;
   G.mode = 'play';
@@ -199,6 +199,7 @@ function wireInput(){
     if(KEYMAP[e.code]) G.input[KEYMAP[e.code]] = true;
     if(e.code === 'KeyE') actionSeat();
     if(e.code === 'KeyF') actionGrab();
+    if(e.code === 'KeyQ') actionRepair();
     if(e.code === 'KeyB') toggleBuild();
     if(e.code === 'KeyM' && VOICE.on) $('#vcBtn').textContent = VOICE.toggleMute() ? '🔇 VC' : '🎙 VC';
     if(e.code === 'KeyT'){         // hot-reload Adam's art
@@ -371,6 +372,25 @@ function actionGrab(){
   G.debris.delete(best.did);
 }
 function repairOK(x, y){ if(G.solo || G.roomCfg.repair === 'any') return true; return inPit(x, y); }
+/* the blueprint = the machine as you last built it; Q puts back whatever got knocked off */
+function snapshotBlue(m){ m.blue = new Map([...m.parts].map(([k, p]) => [k, { ...p }])); }
+function actionRepair(){
+  if(G.mode !== 'play') return;
+  let m = drivenMachine();
+  if(!m){ let bd = 7; for(const mm of G.machines.values()){ if(mm.owner !== myPid()) continue; const d = Math.hypot(mm.x - G.me.x, mm.y - G.me.y); if(d < bd){ bd = d; m = mm; } } }
+  if(!m || m.owner !== myPid() || !m.blue) return;
+  if(!repairOK(m.x, m.y)){ toast('pit-only room — repair in the yellow pads'); return; }
+  const c0 = { ...m.center }; let n = 0;
+  for(const [k, p] of m.blue) if(!m.parts.has(k)){ m.parts.set(k, { ...p }); n++; }
+  if(!n) return;
+  refresh(m); anchorFix(m, c0);
+  // the knocked-off copies vanish from the track (and from friends' screens)
+  for(const [did, db] of G.debris) if(db.home && db.home.mid === m.id){ G.debris.delete(did); if(!G.solo) NET.send('grab', { did }); }
+  G.carried = G.carried.filter(c => !(c.home && c.home.mid === m.id));
+  burst(m.x, m.y, 10, PAL.paper, 4, 0.1);
+  toast('repaired — ' + n + ' back on');
+  if(!G.solo) sendBuilds();
+}
 
 /* ---- build mode ----------------------------------------------------------- */
 function toggleBuild(){
@@ -401,7 +421,7 @@ function toggleBuild(){
 }
 function exitBuild(){
   const m = G.machines.get(G.buildTarget);
-  if(m){ m.editing = false; m.grace = 1.5; refresh(m); if(!G.solo) sendBuilds(); }   // settle never shears
+  if(m){ m.editing = false; m.grace = 1.5; refresh(m); snapshotBlue(m); if(!G.solo) sendBuilds(); }   // settle never shears
   G.mode = 'play';
   if(G.ring) G.ring.close();
   G.ghost = null; G.buildCam = null;
@@ -699,7 +719,7 @@ function hud(drv, t){
     if(G.lap.next > 0) lapEl.textContent = (WORLD.tracks[G.lap.track] ? WORLD.tracks[G.lap.track].name + '  ' : '') + fmtMs(performance.now() - G.lap.t0) + (G.lap.best ? '  best ' + fmtMs(G.lap.best) : '');
     const pad = G.padT > 0 ? WORLD.pads.find(p => Math.hypot(drv.x - p.x, drv.y - p.y) < p.r) : null;
     prompt(pad ? '→ ' + pad.name + ' …' : t - lastPitFlash < 400 ? 'PIT — refueling' :
-      (drv.fuel <= 0 && drv.engines ? 'OUT OF FUEL — pit lane refuels' : 'E hop out · Shift VROOM'));
+      (drv.fuel <= 0 && drv.engines ? 'OUT OF FUEL — pit lane refuels' : (drv.blue && drv.parts.size < drv.blue.size ? 'Q repair · ' : '') + 'E hop out · Shift VROOM'));
   } else {
     sp.style.display = 'none'; $('#bars').style.display = 'none'; lapEl.style.display = 'none';
     let p = '';
