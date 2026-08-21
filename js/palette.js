@@ -1,38 +1,38 @@
 /* =============================================================================
-   palette.js — kRacing's ONE source of truth for colour (2D, cute edition).
-   Pastel fills, outlines in a slightly darker shade of the SAME fill — never
-   black (Adam's rule). CSS reads them as --k-* vars. Tune THIS file, nothing else.
+   palette.js — kRacing's ONE source of truth for colour (2D, VIBRANT edition).
+   Saturated fills, outlines in a darker shade of the SAME fill — never black
+   (Adam's rule). CSS reads them as --k-* vars. Tune THIS file, nothing else.
    ============================================================================= */
 export const PAL = {
   // ---- UI ----
-  cream: 0xfbf6e9, border: 0xe3dccb, paper: 0xfffdf6, panel: 0xf3eddb, panelBorder: 0xe3dccb,
-  red: 0xf26d65, redDark: 0xd4524b, blue: 0x6fb4e8, blueDark: 0x4a8fc7,
-  text: 0x5a5546, mute: 0x958f7e, sky: 0xcfeaf6, cardShadow: 0xa9cfe0,
-  dim: 0xefe9d8, dimBorder: 0xd8d1bc, fuel: 0xc2d45a, batt: 0x5fd0b4,
+  cream: 0xfdf6e4, border: 0xe6d9bd, paper: 0xfffdf6, panel: 0xf6ecd2, panelBorder: 0xe6d9bd,
+  red: 0xef4b42, redDark: 0xc9372f, blue: 0x3d9de6, blueDark: 0x2b7fc2,
+  text: 0x4b4638, mute: 0x8f8870, sky: 0x9fdcf7, cardShadow: 0x6fb5d9,
+  dim: 0xf1e8d0, dimBorder: 0xd9cdb0, fuel: 0xb5d33b, batt: 0x2fcfa1,
   // ---- world ----
-  grass: 0xa9dc86, grassDark: 0x9acf77, grassLight: 0xb6e394,
-  shoulder: 0xc3c7ce, asphalt: 0x6f7787, gravel: 0xc9b58f, gravelEdge: 0xd9c8a6, dash: 0xf4f0e4,
-  checker: 0xf6f2e8, checkerDark: 0x5a6170, kerbRed: 0xf26d65, kerbCream: 0xfbf6e9,
-  pitLane: 0x8a93a3, pad: 0xf5d35e, padDot: 0xd2b43f, pitWall: 0xdfe3e8,
-  plaza: 0xe6d9bf, ramp: 0xf0a46a, rampSkirt: 0xd48a52, chevron: 0xfff0d8, cone: 0xf58f5a, coneStripe: 0xfff3e6,
-  wall: 0xf0b3b3, block: 0xd9b35a, stone: 0xc5bfb2, plinth: 0xa7a197,
-  bush: 0x7fc46d, tree: 0x6db86a, treeLight: 0x8fcc7f, trunk: 0x9c7a55,
-  flowerP: 0xf7a8c4, flowerW: 0xfffaf0, flowerC: 0xf7d35e, rock: 0xc8c2b4, water: 0x8fd0ec, waterDeep: 0x6fbde3,
-  shadow: 0x2b4a22,
+  grass: 0x7fc855, grassDark: 0x6db449, grassLight: 0x95d76a,
+  shoulder: 0xb4b9c1, asphalt: 0x5a6170, concrete: 0xbdb7a9, gravel: 0xc7b185, gravelEdge: 0xd9c79c, dash: 0xf6f3e8, edgeLine: 0xfafaf5,
+  checker: 0xf8f5ec, checkerDark: 0x4b515d, kerbRed: 0xe8403a, kerbCream: 0xfaf5e6,
+  pitLane: 0x6b7382, pad: 0xffcf3d, padDot: 0xd9a91f, pitWall: 0xe3e6ea, bay: 0xfaf8f0,
+  plaza: 0xe6c27c, ramp: 0xf28a2e, rampSkirt: 0xcc6d1f, chevron: 0xfff1d6, cone: 0xff6f2e, coneStripe: 0xfff6ea,
+  wall: 0xf08d8d, block: 0xd9a832, stone: 0xc2bbad, plinth: 0x9e978b,
+  bush: 0x5eb84c, tree: 0x4aa847, treeLight: 0x6cc45e, trunk: 0x8f6a45,
+  flowerP: 0xf98fb8, flowerW: 0xfffaf0, flowerC: 0xffd23f, rock: 0xc1bbad, water: 0x46b4ec, waterDeep: 0x2d96d4,
+  garage: 0xd8d3c8, garageDoor: 0x8e9aa8, shadow: 0x1f3a18,
   // ---- parts ----
-  frame: 0xb3bdc9, wheel: 0x4f5560, hub: 0xe3c04a, seat: 0xf26d65, engine: 0xf0a352, engineDark: 0xd2843a,
-  tank: 0xc2d45a, tankDark: 0x9eb043, intake: 0x6fb4e8, intakeDark: 0x4a8fc7, battery: 0x5fd0b4,
-  batteryDark: 0x3fae93, motor: 0xa985e0, motorDark: 0x8a66c4, fan: 0x7fdcd6, fanDark: 0x5bbab4,
-  wing: 0xf1f3f6, wingDark: 0xcbd1d8, skin: 0xf5d6b0, ink: 0x5a5546,
+  frame: 0xa9b4c2, wheel: 0x3f454f, hub: 0xf2c230, seat: 0xef4b42, engine: 0xf2963a, engineDark: 0xcf7623,
+  tank: 0xb5d33b, tankDark: 0x8fa82a, intake: 0x3d9de6, intakeDark: 0x2b7fc2, battery: 0x2fcfa1,
+  batteryDark: 0x22a67f, motor: 0x9b6fe0, motorDark: 0x7c53c4, fan: 0x5dd3cc, fanDark: 0x3fb0a9,
+  wing: 0xf4f6f8, wingDark: 0xc3cad2, skin: 0xf5d2a6, ink: 0x4b4638,
   // ---- critters ----
-  duck: 0xf7f2e3, beak: 0xf39a3a, leather: 0x9a6a47, raccoon: 0x9699a2, mask: 0x4f5560,
-  armadillo: 0xbf9a68, armadilloDark: 0x9a7a4f, otter: 0x7a5638, otterBelly: 0xd3b48c,
-  coral: 0xf59aa0, coral2: 0xf7b26a, plow: 0x6fb4e8, blade: 0xf58f5a, beacon: 0xf5d35e,
-  hoodie: 0x6fb4e8, stand: 0x9aa1ab, bread: 0xe0ad66, breadDark: 0xb88545,
+  duck: 0xf8f2dd, beak: 0xf7931e, leather: 0x9a6540, raccoon: 0x8d9099, mask: 0x3f454f,
+  armadillo: 0xc19960, armadilloDark: 0x96743f, otter: 0x7a5132, otterBelly: 0xd9b587,
+  coral: 0xf78b92, coral2: 0xf9a94d, plow: 0x3d9de6, blade: 0xff6f2e, beacon: 0xffcf3d,
+  hoodie: 0x3d9de6, stand: 0x98a0ab, bread: 0xe3a954, breadDark: 0xb07f32,
 };
 
 // player colours (hashed by pid)
-export const GUY_COLORS = [0xf26d65, 0x6fb4e8, 0x5fd0b4, 0xf5d35e, 0xa985e0, 0xf58f5a, 0x7fdcd6, 0x9acf77];
+export const GUY_COLORS = [0xef4b42, 0x3d9de6, 0x2fcfa1, 0xffcf3d, 0x9b6fe0, 0xff6f2e, 0x5dd3cc, 0x6db449];
 
 export function hex(n){ return '#' + (n >>> 0).toString(16).padStart(6, '0'); }
 

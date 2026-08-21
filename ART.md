@@ -27,3 +27,9 @@ Placeholders are shipped for parts, the guy and the cast — **overwrite them**.
 - Transparent background is fine (the grass/track shows through).
 - Outlines: a slightly darker shade of the fill, not black (your rule).
 - The ring catalog icons are rendered from the same files — T refreshes them too.
+
+## Ground textures (tiles)
+Every surface is a repeating tile of **8 × 8 units**. The game generates them
+(`js/tiles.js`); drop `assets/tiles/<name>.png` (or `.svg`) to replace one with yours —
+`grass` `grassDark` `asphalt` `shoulder` `concrete` `sand` `gravel` `water` `pit`.
+Any pixel size (512 px looks crisp zoomed in). Make the edges wrap. T reloads.

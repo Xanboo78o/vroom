@@ -1,9 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- rear wing: the plane sits at the back (bottom), struts reach forward. Overwrite me, Adam! -->
-  <rect x="30" y="14" width="14" height="70" rx="6" fill="#cbd1d8" stroke="#a2a7ad" stroke-width="4"/>
-  <rect x="84" y="14" width="14" height="70" rx="6" fill="#cbd1d8" stroke="#a2a7ad" stroke-width="4"/>
-  <rect x="4" y="70" width="120" height="44" rx="16" fill="#f1f3f6" stroke="#c1c6cc" stroke-width="6"/>
-  <rect x="4" y="66" width="12" height="52" rx="5" fill="#f26d65" stroke="#c25751" stroke-width="4"/>
-  <rect x="112" y="66" width="12" height="52" rx="5" fill="#f26d65" stroke="#c25751" stroke-width="4"/>
-  <rect x="24" y="80" width="80" height="10" rx="5" fill="#d6dbe1"/>
+  <!-- rear wing: plane + end plates at the back (bottom), struts reach forward. Overwrite me, Adam! -->
+  <rect x="32" y="12" width="12" height="70" rx="4" fill="#c3cad2" stroke="#9aa3ad" stroke-width="3"/>
+  <rect x="84" y="12" width="12" height="70" rx="4" fill="#c3cad2" stroke="#9aa3ad" stroke-width="3"/>
+  <rect x="8" y="72" width="112" height="40" rx="8" fill="#f4f6f8" stroke="#c3cad2" stroke-width="4"/>
+  <rect x="8" y="104" width="112" height="6" rx="3" fill="#9aa3ad"/>
+  <rect x="18" y="82" width="92" height="8" rx="4" fill="#dfe4ea"/>
+  <rect x="2" y="66" width="12" height="54" rx="3" fill="#ef4b42" stroke="#c23c35" stroke-width="3"/>
+  <rect x="114" y="66" width="12" height="54" rx="3" fill="#ef4b42" stroke="#c23c35" stroke-width="3"/>
+  <circle cx="38" cy="20" r="3" fill="#7c848e"/><circle cx="90" cy="20" r="3" fill="#7c848e"/><circle cx="38" cy="76" r="3" fill="#7c848e"/><circle cx="90" cy="76" r="3" fill="#7c848e"/>
 </svg>

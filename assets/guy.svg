@@ -1,11 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- the little guy from above: shoulders, hands, head, cap + bobble. Facing UP. Overwrite me, Adam! -->
-  <circle cx="22" cy="74" r="13" fill="#5fd0b4" stroke="#4ca690" stroke-width="5"/>
-  <circle cx="106" cy="74" r="13" fill="#5fd0b4" stroke="#4ca690" stroke-width="5"/>
-  <ellipse cx="64" cy="70" rx="42" ry="34" fill="#6fb4e8" stroke="#5990ba" stroke-width="6"/>
-  <ellipse cx="64" cy="60" rx="26" ry="10" fill="#8cc4ee"/>
-  <circle cx="64" cy="58" r="27" fill="#f5d6b0" stroke="#c4ab8d" stroke-width="6"/>
-  <path d="M37 58 A27 27 0 0 1 91 58 L91 50 A30 22 0 0 0 37 50 Z" fill="#4a8fc7" stroke="#3b729f" stroke-width="5" stroke-linejoin="round"/>
-  <circle cx="64" cy="36" r="9" fill="#f26d65" stroke="#c25751" stroke-width="4"/>
-  <circle cx="57" cy="70" r="2.5" fill="#5a5546"/><circle cx="71" cy="70" r="2.5" fill="#5a5546"/>
+  <!-- the little guy from above: shoulders, hands, head, cap with a brim. Facing UP. Overwrite me, Adam! -->
+  <circle cx="24" cy="76" r="12" fill="#f5d2a6" stroke="#c7a77f" stroke-width="3.5"/>
+  <circle cx="104" cy="76" r="12" fill="#f5d2a6" stroke="#c7a77f" stroke-width="3.5"/>
+  <ellipse cx="64" cy="72" rx="40" ry="32" fill="#3d9de6" stroke="#2b7fc2" stroke-width="4"/>
+  <path d="M40 62 Q64 52 88 62" stroke="#7fc0f2" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <circle cx="64" cy="58" r="24" fill="#f5d2a6" stroke="#c7a77f" stroke-width="4"/>
+  <path d="M40 58 A24 24 0 0 1 88 58 L88 50 A26 20 0 0 0 40 50 Z" fill="#ef4b42" stroke="#c23c35" stroke-width="3.5" stroke-linejoin="round"/>
+  <rect x="44" y="30" width="40" height="10" rx="5" fill="#c23c35"/>
+  <circle cx="64" cy="48" r="5" fill="#fffdf6" stroke="#c23c35" stroke-width="2"/>
+  <circle cx="57" cy="70" r="2.5" fill="#4b4638"/><circle cx="71" cy="70" r="2.5" fill="#4b4638"/>
 </svg>

@@ -1,9 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- intake: the mouth faces UP (forward) and needs clear air. Overwrite me, Adam! -->
-  <rect x="10" y="30" width="108" height="92" rx="24" fill="#6fb4e8" stroke="#5990ba" stroke-width="6"/>
-  <rect x="24" y="6" width="80" height="44" rx="16" fill="#4a8fc7" stroke="#3b729f" stroke-width="6"/>
-  <rect x="36" y="16" width="56" height="10" rx="5" fill="#2f5f86"/>
-  <rect x="36" y="32" width="56" height="8" rx="4" fill="#2f5f86"/>
-  <rect x="24" y="62" width="80" height="16" rx="8" fill="#9ccbf0"/>
-  <rect x="24" y="88" width="80" height="16" rx="8" fill="#9ccbf0"/>
+  <!-- intake: mesh mouth faces UP (forward) and needs clear air; vented body. Overwrite me, Adam! -->
+  <rect x="10" y="34" width="108" height="88" rx="12" fill="#3d9de6" stroke="#2b7fc2" stroke-width="4"/>
+  <rect x="22" y="6" width="84" height="44" rx="10" fill="#2b7fc2" stroke="#205f91" stroke-width="4"/>
+  <g stroke="#1a4f7a" stroke-width="2">
+    <path d="M32 14 V44 M46 14 V44 M60 14 V44 M74 14 V44 M88 14 V44 M100 14 V44"/>
+    <path d="M28 20 H100 M28 30 H100 M28 40 H100"/>
+  </g>
+  <rect x="24" y="64" width="80" height="10" rx="4" fill="#7fc0f2"/>
+  <rect x="24" y="84" width="80" height="10" rx="4" fill="#7fc0f2"/>
+  <rect x="24" y="104" width="80" height="10" rx="4" fill="#7fc0f2"/>
+  <circle cx="20" cy="112" r="4" fill="#205f91"/><circle cx="108" cy="112" r="4" fill="#205f91"/>
 </svg>

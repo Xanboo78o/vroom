@@ -13,6 +13,7 @@
    ============================================================================= */
 import { PAL, hex, shade } from './palette.js';
 import { rrect, blob, disc, label } from './draw.js';
+import { pat } from './tiles.js';
 import { L8TER } from './adamtrack.js';
 
 export const SURF = { grass: 0, asphalt: 1, gravel: 2, sand: 3, water: 4 };
@@ -154,7 +155,7 @@ export function paintSurface(W, pts, width, id){
 
 /* ---- build: geometry + registration ------------------------------------------- */
 const BUILT = [];      // per track: everything drawTracks needs
-export function buildTracks(W, { wall }){
+export function buildTracks(W, { wall, padAt }){
   let padI = 0;
   for(const T of TRACKS){
     let pts, L;
@@ -210,19 +211,19 @@ export function buildTracks(W, { wall }){
     // register
     W.tracks.push({ id: T.id, name: T.name, color: T.color, closed, cps, start, length: L, type: T.type });
     // teleport pad in Kris's Corner
-    const px = -35 + padI * 10, py = 64; padI++;
+    const pp = padAt ? padAt(padI) : { x: -35 + padI * 10, y: 64 }; const px = pp.x, py = pp.y; padI++;
     W.pads.push({ x: px, y: py, r: 2.6, track: T.id, name: T.name, color: T.color });
     BUILT.push(B);
   }
 }
 
 /* ---- drawing -------------------------------------------------------------------- */
-function stroke(ctx, pts, closed, width, colorHex, dash = null){
+function stroke(ctx, pts, closed, width, style, dash = null, cap = 'round'){
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
   for(let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
   if(closed) ctx.closePath();
-  ctx.lineWidth = width; ctx.strokeStyle = hex(colorHex); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.lineWidth = width; ctx.strokeStyle = typeof style === 'number' ? hex(style) : style; ctx.lineJoin = 'round'; ctx.lineCap = cap;
   ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
 }
 function inView(B, view){
@@ -235,29 +236,32 @@ function inView(B, view){
 export function drawTracks(ctx, view, zoom){
   const vis = BUILT.filter(B => inView(B, view));
   // shoulders first (all), then surfaces, so joins/overlaps read right
+  const SH = pat(ctx, 'shoulder'), AS = pat(ctx, 'asphalt'), GR = pat(ctx, 'gravel'), GE = pat(ctx, 'sand'), PT = pat(ctx, 'pit');
   for(const B of vis){
     const gravel = B.T.surface === 'gravel';
-    stroke(ctx, B.pts, B.closed, B.T.width + 3.6, gravel ? PAL.gravelEdge : PAL.shoulder);
-    if(B.extra) stroke(ctx, B.extra, false, B.T.width + 3.6, PAL.shoulder);
-    if(B.pit) stroke(ctx, B.pit, false, 7 + 2.4, PAL.shoulder);
+    stroke(ctx, B.pts, B.closed, B.T.width + 3.6, gravel ? GE : SH);
+    if(B.extra) stroke(ctx, B.extra, false, B.T.width + 3.6, SH);
+    if(B.pit) stroke(ctx, B.pit, false, 7 + 2.4, SH);
   }
   for(const B of vis){
     const gravel = B.T.surface === 'gravel';
-    stroke(ctx, B.pts, B.closed, B.T.width, gravel ? PAL.gravel : PAL.asphalt);
-    if(B.extra) stroke(ctx, B.extra, false, B.T.width, PAL.asphalt);
-    if(B.pit){ stroke(ctx, B.pit, false, 7, PAL.pitLane);
-      const p = B.pitPad; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); rrect(ctx, -3.5, -6, 7, 12, 1.2); blob(ctx, PAL.pad, 0.12); label(ctx, 'PIT', 0, 0, 2.2, PAL.padDot); ctx.restore(); }
+    // white edge lines = a white stroke under a slightly narrower textured surface
+    if(!gravel) stroke(ctx, B.pts, B.closed, B.T.width, PAL.edgeLine);
+    stroke(ctx, B.pts, B.closed, gravel ? B.T.width : B.T.width - 0.5, gravel ? GR : AS);
+    if(B.extra){ stroke(ctx, B.extra, false, B.T.width, PAL.edgeLine); stroke(ctx, B.extra, false, B.T.width - 0.5, AS); }
+    if(B.pit){ stroke(ctx, B.pit, false, 7, PT);
+      const p = B.pitPad; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); rrect(ctx, -3.5, -6, 7, 12, 0.6); blob(ctx, PAL.pad, 0.12); label(ctx, 'PIT', 0, 0, 2.2, PAL.padDot, { font: "Impact, 'Arial Black', sans-serif", weight: 900 }); ctx.restore(); }
   }
   for(const B of vis){
     // kerbs: cream base + red dashes
-    for(const line of B.kerbs){ stroke(ctx, line, false, 1.1, PAL.kerbCream); stroke(ctx, line, false, 1.1, PAL.kerbRed, [1.4, 1.4]); }
+    for(const line of B.kerbs){ stroke(ctx, line, false, 1.1, PAL.kerbCream, null, 'butt'); stroke(ctx, line, false, 1.1, PAL.kerbRed, [1.6, 1.6], 'butt'); }
     // centre dashes
     if(B.T.surface !== 'gravel' && zoom > 6){ stroke(ctx, B.pts, B.closed, 0.35, PAL.dash, [2.2, 4.4]); if(B.extra) stroke(ctx, B.extra, false, 0.35, PAL.dash, [2.2, 4.4]); }
     // start line: checkers across + two red posts
     startLine(ctx, B.start, B.T.width);
     if(B.finish) startLine(ctx, B.finish, B.T.width, PAL.checker);
     // name sign
-    const s = B.sign; label(ctx, B.T.name, s.x, s.y, 1.6, PAL.paper, { bg: B.T.color });
+    const s = B.sign; label(ctx, B.T.name, s.x, s.y, 1.5, PAL.paper, { bg: B.T.color, font: "Impact, 'Arial Black', sans-serif", weight: 900 });
   }
 }
 function startLine(ctx, st, width, postHex = PAL.red){

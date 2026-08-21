@@ -1,7 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- battery with a lil bolt. Overwrite me, Adam! -->
-  <rect x="40" y="4" width="48" height="20" rx="8" fill="#3fae93" stroke="#328b76" stroke-width="5"/>
-  <rect x="12" y="18" width="104" height="106" rx="22" fill="#5fd0b4" stroke="#4ca690" stroke-width="6"/>
-  <rect x="24" y="30" width="80" height="22" rx="11" fill="#8fe0cb"/>
-  <polygon points="70,50 46,84 62,84 54,110 82,72 66,72 76,50" fill="#fffdf6" stroke="#4ca690" stroke-width="4" stroke-linejoin="round"/>
+  <!-- battery: terminals at the front, charge bars, a bolt. Overwrite me, Adam! -->
+  <rect x="28" y="4" width="20" height="18" rx="4" fill="#22a67f" stroke="#1a805f" stroke-width="3"/>
+  <rect x="80" y="4" width="20" height="18" rx="4" fill="#22a67f" stroke="#1a805f" stroke-width="3"/>
+  <text x="38" y="17" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="14" fill="#c9f2e5">+</text>
+  <text x="90" y="17" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="14" fill="#c9f2e5">−</text>
+  <rect x="12" y="18" width="104" height="106" rx="12" fill="#2fcfa1" stroke="#22a67f" stroke-width="4"/>
+  <rect x="22" y="28" width="84" height="22" rx="6" fill="#5fdcb8"/>
+  <rect x="28" y="96" width="16" height="18" rx="3" fill="#1a805f"/><rect x="50" y="96" width="16" height="18" rx="3" fill="#1a805f"/><rect x="72" y="96" width="16" height="18" rx="3" fill="#1a805f"/><rect x="94" y="96" width="12" height="18" rx="3" fill="#1a805f" opacity=".5"/>
+  <polygon points="70,46 48,78 62,78 56,96 82,66 68,66 76,46" fill="#fffdf6" stroke="#22a67f" stroke-width="3" stroke-linejoin="round"/>
 </svg>

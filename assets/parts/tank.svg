@@ -1,8 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- fuel tank: a pill with a cap. Overwrite me, Adam! -->
-  <rect x="20" y="6" width="88" height="116" rx="44" fill="#c2d45a" stroke="#9baa48" stroke-width="6"/>
-  <rect x="34" y="24" width="14" height="70" rx="7" fill="#dbe88a"/>
-  <circle cx="64" cy="36" r="14" fill="#9eb043" stroke="#7f8d36" stroke-width="5"/>
-  <rect x="56" y="32" width="16" height="8" rx="4" fill="#c2d45a"/>
-  <text x="64" y="96" text-anchor="middle" font-family="Trebuchet MS, sans-serif" font-weight="900" font-size="26" fill="#7f8d36">FUEL</text>
+  <!-- fuel tank: jerrycan from above, cap at the front. Overwrite me, Adam! -->
+  <rect x="16" y="8" width="96" height="112" rx="14" fill="#b5d33b" stroke="#8fa82a" stroke-width="4"/>
+  <path d="M24 30 H104 M24 46 H104" stroke="#9cbb2f" stroke-width="3"/>
+  <rect x="30" y="54" width="68" height="56" rx="8" fill="#c6e05a" stroke="#8fa82a" stroke-width="3"/>
+  <rect x="40" y="66" width="10" height="34" rx="4" fill="#8fa82a" opacity=".6"/>
+  <text x="72" y="90" text-anchor="middle" font-family="Impact, 'Arial Black', sans-serif" font-weight="900" font-size="22" fill="#6e8220">FUEL</text>
+  <circle cx="64" cy="24" r="12" fill="#8fa82a" stroke="#6e8220" stroke-width="3"/>
+  <rect x="56" y="21" width="16" height="6" rx="3" fill="#c6e05a"/>
 </svg>

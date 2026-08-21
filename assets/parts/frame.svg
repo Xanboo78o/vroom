@@ -1,7 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- a frame tile. Overwrite me, Adam! -->
-  <rect x="5" y="5" width="118" height="118" rx="28" fill="#b3bdc9" stroke="#8f97a1" stroke-width="6"/>
-  <rect x="16" y="14" width="96" height="22" rx="11" fill="#c7cfd9"/>
-  <circle cx="64" cy="66" r="22" fill="#a1abb8" stroke="#8f97a1" stroke-width="4"/>
-  <circle cx="58" cy="60" r="7" fill="#d3d9e1"/>
+  <!-- frame plate: bevel, corner rivets, centre bolt. Overwrite me, Adam! -->
+  <rect x="5" y="5" width="118" height="118" rx="14" fill="#a9b4c2" stroke="#87909b" stroke-width="4"/>
+  <rect x="12" y="12" width="104" height="104" rx="10" fill="none" stroke="#c9d1db" stroke-width="3"/>
+  <path d="M12 22 L22 12" stroke="#d8dfe7" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="22" cy="22" r="5" fill="#7f8893"/><circle cx="106" cy="22" r="5" fill="#7f8893"/><circle cx="22" cy="106" r="5" fill="#7f8893"/><circle cx="106" cy="106" r="5" fill="#7f8893"/>
+  <circle cx="21" cy="21" r="2" fill="#d8dfe7"/><circle cx="105" cy="21" r="2" fill="#d8dfe7"/><circle cx="21" cy="105" r="2" fill="#d8dfe7"/><circle cx="105" cy="105" r="2" fill="#d8dfe7"/>
+  <polygon points="64,46 80,55 80,73 64,82 48,73 48,55" fill="#95a0ae" stroke="#7f8893" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="64" cy="64" r="7" fill="#c9d1db"/>
 </svg>

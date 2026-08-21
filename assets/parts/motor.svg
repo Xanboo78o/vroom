@@ -1,8 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- electric motor: a can with a band and coils. Overwrite me, Adam! -->
-  <rect x="6" y="22" width="116" height="84" rx="42" fill="#a985e0" stroke="#876ab3" stroke-width="6"/>
-  <rect x="20" y="34" width="88" height="18" rx="9" fill="#c4aaee"/>
-  <rect x="48" y="14" width="32" height="100" rx="12" fill="#8a66c4" stroke="#6e519d" stroke-width="5"/>
-  <rect x="56" y="26" width="16" height="8" rx="4" fill="#b092e8"/><rect x="56" y="44" width="16" height="8" rx="4" fill="#b092e8"/>
-  <rect x="56" y="62" width="16" height="8" rx="4" fill="#b092e8"/><rect x="56" y="80" width="16" height="8" rx="4" fill="#b092e8"/>
+  <!-- electric motor: finned can, shaft out both sides. Overwrite me, Adam! -->
+  <rect x="4" y="54" width="14" height="20" rx="4" fill="#6b6f77" stroke="#4f535a" stroke-width="3"/>
+  <rect x="110" y="54" width="14" height="20" rx="4" fill="#6b6f77" stroke="#4f535a" stroke-width="3"/>
+  <rect x="14" y="22" width="100" height="84" rx="22" fill="#9b6fe0" stroke="#7c53c4" stroke-width="4"/>
+  <path d="M24 34 H104 M24 44 H104 M24 84 H104 M24 94 H104" stroke="#7c53c4" stroke-width="3"/>
+  <rect x="48" y="14" width="32" height="100" rx="8" fill="#7c53c4" stroke="#61409c" stroke-width="3"/>
+  <rect x="56" y="24" width="16" height="6" rx="3" fill="#b694ee"/><rect x="56" y="38" width="16" height="6" rx="3" fill="#b694ee"/><rect x="56" y="84" width="16" height="6" rx="3" fill="#b694ee"/><rect x="56" y="98" width="16" height="6" rx="3" fill="#b694ee"/>
+  <circle cx="64" cy="64" r="10" fill="#c7aaf2" stroke="#61409c" stroke-width="3"/>
 </svg>

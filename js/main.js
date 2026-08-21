@@ -11,6 +11,7 @@ import { buildWorld, WORLD, inPit, drawWorld, drawCanopy, surfaceAt } from './wo
 import { SURF } from './tracks.js';
 import { makeGuy, stepGuy, syncRemoteGuy, eject, drawGuy, GUY_SIZE } from './guy.js';
 import { loadArt } from './art.js';
+import { reloadTiles } from './tiles.js';
 import { NET, makeCode } from './net.js';
 import { VOICE } from './voice.js';
 import { PAL, GUY_COLORS, hex, shade, rgba, tint } from './palette.js';
@@ -23,7 +24,7 @@ const G = {
   cv: null, ctx: null, dpr: 1, W: 1, H: 1,
   me: null, guys: new Map(), machines: new Map(), debris: new Map(),
   mode: 'menu', solo: true,
-  cam: { x: 0, y: 37, dist: 17, zoom: 40 },   // dist ≈ the old camera height: 8..42
+  cam: { x: 0, y: -215, dist: 20, zoom: 40 },   // dist ≈ the old camera height: 8..42
   buildDist: 9,                                // build mode zooms in on the machine (wheel: 5..18)
   buildCam: null,                              // frozen view point while building (Ctrl+G re-centres)
   shake: 0, shakeT: 0,
@@ -44,7 +45,7 @@ function boot(){
   buildWorld();
   wireInput(); wireMenu(); wireNet();
   window.KR.dbg = { serializeParts, loadParts, onImpact, sendBuilds, teleportTo, toggleBuild, placePart, removePart, selectPart, actionSeat, actionGrab, actionRepair, exitBuild };
-  probeLogo();
+  probeLogo(); loadArt();
   requestAnimationFrame(loop);
 }
 function onResize(){
@@ -207,7 +208,7 @@ function wireInput(){
         clearIcons(); if(G.ring && G.ring.isOpen) G.ring.render();
         console.log('[art] reloaded:', loaded.join(', ') || '(none drawn yet)');
       });
-      probeLogo();
+      probeLogo(); reloadTiles();
     }
     if(G.mode === 'build'){
       if(e.code === 'Escape' && G.ring && G.ring.isOpen) G.ring.close();
@@ -615,8 +616,8 @@ let last = 0;
 function loop(t){
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
-  if(G.mode === 'menu' || !G.me) return;
   const ts = t / 1000;
+  if(G.mode === 'menu' || !G.me){ menuScene(ts); return; }
 
   const drv = drivenMachine();
   if(drv){
@@ -672,6 +673,15 @@ function loop(t){
   }
 }
 
+/* the paddock drifting by behind the menu card */
+function menuScene(ts){
+  const mc = WORLD.menuCam;
+  G.cam.x = mc.x + Math.sin(ts * 0.11) * 26; G.cam.y = mc.y + Math.cos(ts * 0.07) * 7;
+  G.cam.zoom = G.H / (1.25 * 24);
+  stepFX(0.016);
+  render(ts);
+}
+
 /* ---- camera: fixed top-down, north up, tight follow ----------------------------- */
 function camera(dt, drv){
   let fx, fy, D = G.cam.dist;
@@ -698,9 +708,9 @@ function render(ts){
   for(const m of G.machines.values()) drawMachine(ctx, m, z, ts);
   if(G.mode === 'build') drawBuildOverlay(ctx, z);
   for(const g of G.guys.values()) drawGuy(ctx, g, z, ts);
-  drawGuy(ctx, G.me, z, ts);
+  if(G.me) drawGuy(ctx, G.me, z, ts);
   // carried parts float by the guy
-  if(G.carried.length && !G.me.inMachine){ ctx.save(); ctx.translate(G.me.x, G.me.y - 0.9 - Math.sin(ts * 4) * 0.06); ctx.scale(0.7, 0.7); drawPart(ctx, G.carried[G.carried.length - 1].type, 0, z); ctx.restore(); }
+  if(G.me && G.carried.length && !G.me.inMachine){ ctx.save(); ctx.translate(G.me.x, G.me.y - 0.9 - Math.sin(ts * 4) * 0.06); ctx.scale(0.7, 0.7); drawPart(ctx, G.carried[G.carried.length - 1].type, 0, z); ctx.restore(); }
   drawFX(ctx);
   drawCanopy(ctx, view, z);
 }
