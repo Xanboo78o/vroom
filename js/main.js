@@ -57,12 +57,27 @@ function boot(){
   applyGfx(GFX.cfg);
   GFX.onChange = applyGfx;
   $('#gfxChip').onclick = () => cycleTier();
-  $('#camChip').onclick = () => { cycleCam(); $('#camChip').textContent = camLabel(); };
+  $('#camChip').onclick = () => { cycleCam(); onCamMode(); };
   initPaint(G.scene);
   wireInput(); wireMenu(); wireNet();
   window.VR.dbg = { serializeParts, loadParts, rebuildMesh, onImpact, sendBuilds, stampDecal, copyPart };
   probeLogo();
   requestAnimationFrame(loop);
+}
+// camera mode changed: chip, pointer lock (3rd-person / fps = mouse look), sprite vs block guy
+function onCamMode(){
+  $('#camChip').textContent = camLabel();
+  const cv = $('#c');
+  if(CAM.mode === 'top'){ if(document.pointerLockElement === cv) document.exitPointerLock(); }
+  else if(G.mode === 'play') lockPointer(cv);
+  refillGuys();
+}
+// pointer lock needs a user gesture; swallow the rejection when it isn't one (tests, programmatic)
+function lockPointer(cv){ try { const r = cv.requestPointerLock && cv.requestPointerLock(); if(r && r.catch) r.catch(() => {}); } catch(e){} }
+function refillGuys(){
+  const sprite = CAM.mode === 'top';
+  if(G.me) fillGuyMesh(G.me.group, G.me.color, sprite);
+  for(const [, g] of G.guys) fillGuyMesh(g.group, g.color, sprite);
 }
 function onResize(){
   G.renderer.setSize(innerWidth, innerHeight);
@@ -126,6 +141,7 @@ async function startGame(opt){
   // my guy + my starter machine
   const pid = G.solo ? 'solo' : NET.me;
   G.me = makeGuy(colorFor(pid), name);
+  fillGuyMesh(G.me.group, G.me.color, CAM.mode === 'top');
   G.me.pos.copy(WORLD.spawn);
   G.scene.add(G.me.group);
   const spot = WORLD.parking[hash(pid) % WORLD.parking.length];
@@ -151,6 +167,7 @@ function wireNet(){
     for(const [pid, info] of peers){
       if(pid === NET.me || G.guys.has(pid)) continue;
       const g = makeGuy(colorFor(pid), info.name); g.remote = true;
+      fillGuyMesh(g.group, g.color, CAM.mode === 'top');
       G.guys.set(pid, g); G.scene.add(g.group);
     }
     for(const [pid, g] of G.guys){
@@ -245,13 +262,12 @@ function wireInput(){
     if(e.code === 'KeyE') actionSeat();
     if(e.code === 'KeyF') actionGrab();
     if(e.code === 'KeyB') toggleBuild();
-    if(e.code === 'KeyC' && !e.ctrlKey && G.mode === 'play'){ cycleCam(); $('#camChip').textContent = camLabel(); }
+    if(e.code === 'KeyC' && !e.ctrlKey && G.mode === 'play'){ cycleCam(); onCamMode(); }
     if(e.code === 'KeyM' && VOICE.on) $('#vcBtn').textContent = VOICE.toggleMute() ? '🔇 VC' : '🎙 VC';
     if(e.code === 'KeyT'){         // hot-reload Adam's art
       loadArt().then(loaded => {
         for(const m of G.machines.values()) rebuildMesh(m);
-        if(G.me) fillGuyMesh(G.me.group, G.me.color);
-        for(const [, g] of G.guys) fillGuyMesh(g.group, g.color);
+        refillGuys();
         ICONS.clear(); if(G.ring && G.ring.isOpen) G.ring.render();   // catalog icons show the new art too
         console.log('[art] reloaded:', loaded.join(', ') || '(none drawn yet)');
       });
@@ -278,18 +294,15 @@ function wireInput(){
   addEventListener('keyup', e => { if(e.target && e.target.tagName === 'INPUT') return; if(KEYMAP[e.code]) G.input[KEYMAP[e.code]] = false; });
 
   const cv = $('#c');
-  const cur = $('#cur');
   addEventListener('mousemove', e => {
     if(document.pointerLockElement === cv){ G.mouseDelta.x += e.movementX; G.mouseDelta.y += e.movementY; return; }
     mouse.x = (e.clientX / innerWidth) * 2 - 1;
     mouse.y = -(e.clientY / innerHeight) * 2 + 1;
-    cur.style.left = e.clientX + 'px';
-    cur.style.top = e.clientY + 'px';
   });
-  addEventListener('mousedown', () => cur.classList.add('press'));
-  addEventListener('mouseup', () => { cur.classList.remove('press'); paintUp(); });
+  addEventListener('mouseup', () => paintUp());
+  document.addEventListener('pointerlockchange', () => document.body.classList.toggle('locked', document.pointerLockElement === cv));
   cv.addEventListener('mousedown', e => {
-    if(G.mode === 'play' && CAM.mode === 'free' && e.button === 2){ cv.requestPointerLock && cv.requestPointerLock(); return; }
+    if(G.mode === 'play' && CAM.mode !== 'top' && document.pointerLockElement !== cv){ lockPointer(cv); return; }
     if(G.mode !== 'build') return;
     const bm = G.machines.get(G.buildTarget);
     if(e.button === 0){ if(PAINT.on) paintDown(bm, e.shiftKey); else placePart(); }
@@ -658,7 +671,10 @@ function loop(t){
       for(const o of G.machines.values()) if(o !== m) bumpMachines(m, o, onImpact);
     }
   }
-  if(G.mode === 'play') stepGuy(G.me, WORLD, freeCam ? {} : G.input, G.camYaw, dt, freeCam ? null : mouseAim());
+  if(G.mode === 'play'){
+    const topCam = CAM.mode === 'top';
+    stepGuy(G.me, WORLD, freeCam ? {} : G.input, topCam ? G.camYaw : CAM.camYaw, dt, (freeCam || !topCam) ? null : mouseAim());
+  }
   else if(G.mode === 'build'){   // guy stands by while building
     G.me.group.visible = !G.me.inMachine;
     G.me.group.position.copy(G.me.pos);
@@ -747,10 +763,10 @@ function camera(dt, drv){
     focus = drv.pos;
     H = G.camDist + (CAM.pullback ? drv.vel.length() * 0.45 : 0);     // zoom out a bit at speed
   } else focus = G.me ? G.me.pos : WORLD.spawn;
-  camT.lerp(focus, Math.min(1, dt * 8));
+  camT.lerp(focus, Math.min(1, dt * 18));
   const seatPos = drv && drv.seatKey ? cellWorld(drv, drv.seatKey) : null;
   const out = updateCam({ camera: G.camera, dt, mode: G.mode, drv, guy: G.me || { pos: WORLD.spawn, yaw: 0 }, focus: camT, H,
-    seatPos, input: G.input, mouseDelta: G.mouseDelta, pointerLocked: document.pointerLockElement === $('#c'), WORLD });
+    seatPos, input: G.input, mouseDelta: G.mouseDelta, pointerLocked: document.pointerLockElement === $('#c') || !!G.forceLock, WORLD });
   G.mouseDelta.x = 0; G.mouseDelta.y = 0;
   updateLight(out.focus, out.reach, G.camera);
 }

@@ -12,17 +12,21 @@ import * as THREE from 'three';
 
 const MODES = ['top', 'chase', 'fps', 'free'];
 export const CAM = {
-  mode: 'top', fov: 75, shake: true, pullback: true, dist: 9,
+  mode: 'top', fov: 75, shake: true, pullback: true, dist: 9, sens: 0.0025,
   look: 0,                        // -1 left, +1 right, 2 behind (held keys)
+  orbit: { yaw: 0, pitch: 0.35 }, // mouse-look offset (chase: relative to the car; on foot: absolute yaw)
+  fpsLook: { yaw: 0, pitch: 0 },  // mouse-look in the seat
+  idle: 0,                        // seconds since the mouse last moved (chase recentres)
+  camYaw: 0,                      // yaw to walk relative to (stepGuy's camYaw) in chase/fps
   free: { pos: new THREE.Vector3(0, 20, 60), yaw: 0, pitch: -0.6 },
   _kick: 0, _shakeT: 0,
   _pos: new THREE.Vector3(), _tgt: new THREE.Vector3(), _init: false,
 };
-try { Object.assign(CAM, JSON.parse(localStorage.getItem('kr_cam') || '{}'), { free: CAM.free, _pos: CAM._pos, _tgt: CAM._tgt }); } catch(e){}
+try { const sv = JSON.parse(localStorage.getItem('kr_cam') || '{}'); for(const k of ['mode','fov','shake','pullback','dist','sens']) if(sv[k] !== undefined) CAM[k] = sv[k]; } catch(e){}
 if(!MODES.includes(CAM.mode)) CAM.mode = 'top';
 
-export function saveCam(){ localStorage.setItem('kr_cam', JSON.stringify({ mode: CAM.mode, fov: CAM.fov, shake: CAM.shake, pullback: CAM.pullback, dist: CAM.dist })); }
-export function cycleCam(){ CAM.mode = MODES[(MODES.indexOf(CAM.mode) + 1) % MODES.length]; CAM._init = false; saveCam(); return CAM.mode; }
+export function saveCam(){ localStorage.setItem('kr_cam', JSON.stringify({ mode: CAM.mode, fov: CAM.fov, shake: CAM.shake, pullback: CAM.pullback, dist: CAM.dist, sens: CAM.sens })); }
+export function cycleCam(){ CAM.mode = MODES[(MODES.indexOf(CAM.mode) + 1) % MODES.length]; CAM._init = false; CAM.orbit.yaw = 0; CAM.orbit.pitch = 0.35; CAM.fpsLook.yaw = 0; CAM.fpsLook.pitch = 0; saveCam(); return CAM.mode; }
 export function setCam(mode){ if(MODES.includes(mode)){ CAM.mode = mode; CAM._init = false; saveCam(); } }
 export function camLabel(){ return 'CAM · ' + CAM.mode.toUpperCase(); }
 export function kick(J){ if(CAM.shake) CAM._kick = Math.min(1, CAM._kick + J / 120); }
@@ -48,35 +52,54 @@ export function updateCam(ctx){
   } else if(mode === 'chase'){
     camera.up.set(0, 1, 0);
     const m = ctx.drv;
-    let yaw, tgt;
-    if(m){ _f.set(0, 0, 1).applyQuaternion(m.quat); yaw = Math.atan2(_f.x, _f.z); tgt = m.pos; }
-    else { yaw = ctx.guy.yaw + Math.PI; tgt = ctx.guy.pos; }
+    const md = ctx.mouseDelta;
+    const moved = ctx.pointerLocked && md && (md.x || md.y);
+    if(moved){ CAM.orbit.yaw -= md.x * CAM.sens; CAM.orbit.pitch = THREE.MathUtils.clamp(CAM.orbit.pitch + md.y * CAM.sens, -0.15, 1.25); CAM.idle = 0; }
+    else CAM.idle += dt;
+    let baseYaw, tgt;
+    if(m){
+      _f.set(0, 0, 1).applyQuaternion(m.quat); baseYaw = Math.atan2(_f.x, _f.z); tgt = m.pos;
+      // driving: after a moment without mouse input the view settles back behind the car
+      if(CAM.idle > 1.2 && m.vel.lengthSq() > 4){ const k = Math.min(1, dt * 2.5); CAM.orbit.yaw += (Math.atan2(Math.sin(-CAM.orbit.yaw), Math.cos(-CAM.orbit.yaw))) * k; CAM.orbit.pitch += (0.35 - CAM.orbit.pitch) * k; }
+      if(!CAM._init) CAM.orbit.yaw = 0;
+    } else { baseYaw = 0; tgt = ctx.guy.pos; if(!CAM._init) CAM.orbit.yaw = ctx.guy.yaw + Math.PI; }   // on foot: absolute orbit (3rd-person controller)
     const lookYaw = CAM.look === 2 ? Math.PI : CAM.look * Math.PI / 2;
-    const a = yaw + lookYaw;
-    const d = CAM.dist;
-    _o.set(-Math.sin(a) * d, d * 0.5 + 0.6, -Math.cos(a) * d).add(tgt);
+    const a = baseYaw + CAM.orbit.yaw + lookYaw, p = CAM.orbit.pitch;
+    const d = CAM.dist * (m ? 1 : 0.6);
+    const cp = Math.cos(p), sp = Math.sin(p);
+    _o.set(-Math.sin(a) * d * cp, d * sp + (m ? 0.6 : 1.2), -Math.cos(a) * d * cp).add(tgt);
     if(!CAM._init){ CAM._pos.copy(_o); CAM._tgt.copy(tgt); CAM._init = true; }
-    CAM._pos.lerp(_o, Math.min(1, dt * 6));
-    CAM._tgt.lerp(tgt, Math.min(1, dt * 10));
+    CAM._pos.lerp(_o, Math.min(1, dt * (moved ? 40 : 16)));
+    CAM._tgt.lerp(tgt, Math.min(1, dt * 24));
     camera.position.copy(CAM._pos);
-    _look.set(Math.sin(a) * 2, 0.8, Math.cos(a) * 2).add(CAM._tgt);
+    _look.set(Math.sin(a) * 1.5, m ? 0.8 : 1.2, Math.cos(a) * 1.5).add(CAM._tgt);
     camera.lookAt(_look);
+    CAM.camYaw = a - Math.PI;                               // stepGuy: W walks where the camera looks
     focus = CAM._tgt; reach = d * 2.2 + 12;
   } else if(mode === 'fps'){
     camera.up.set(0, 1, 0);
     const m = ctx.drv;
-    const lookYaw = CAM.look === 2 ? Math.PI : CAM.look * Math.PI / 2;
+    const md = ctx.mouseDelta;
+    const moved = ctx.pointerLocked && md && (md.x || md.y);
+    if(moved){ CAM.fpsLook.yaw -= md.x * CAM.sens; CAM.fpsLook.pitch = THREE.MathUtils.clamp(CAM.fpsLook.pitch - md.y * CAM.sens, -1.4, 1.4); CAM.idle = 0; }
+    else CAM.idle += dt;
+    const lookYaw = (CAM.look === 2 ? Math.PI : CAM.look * Math.PI / 2);
     if(m && ctx.seatPos){
+      // in the seat: mouse looks around, settles forward again after a moment while moving
+      if(CAM.idle > 1.5 && m.vel.lengthSq() > 4){ const k = Math.min(1, dt * 2.5); CAM.fpsLook.yaw += Math.atan2(Math.sin(-CAM.fpsLook.yaw), Math.cos(-CAM.fpsLook.yaw)) * k; CAM.fpsLook.pitch *= 1 - k; }
       camera.position.copy(ctx.seatPos).add(_o.set(0, 0.9, 0).applyQuaternion(m.quat));
-      _q.setFromAxisAngle(_up, Math.PI - lookYaw);          // camera looks down -z, machine forward is +z
+      _e.set(CAM.fpsLook.pitch, Math.PI + CAM.fpsLook.yaw - lookYaw, 0, 'YXZ');
+      _q.setFromEuler(_e);
       camera.quaternion.copy(m.quat).multiply(_q);
       focus = m.pos; reach = 30;
     } else {
+      // on foot: a plain FPS controller — mouse turns the guy, WASD walks relative to the view
       const g = ctx.guy;
+      if(!CAM._init){ CAM.fpsLook.yaw = g.yaw + Math.PI; CAM.fpsLook.pitch = 0; CAM._init = true; }
       camera.position.set(g.pos.x, g.pos.y + 1.3, g.pos.z);
-      const a = g.yaw + Math.PI - lookYaw;                   // guy faces -(sin yaw, cos yaw)
-      _e.set(0, a, 0, 'YXZ');
+      _e.set(CAM.fpsLook.pitch, CAM.fpsLook.yaw - lookYaw, 0, 'YXZ');
       camera.quaternion.setFromEuler(_e);
+      CAM.camYaw = CAM.fpsLook.yaw;                          // camera forward = -z rotated by yaw
       focus = g.pos; reach = 30;
     }
   } else { // free

@@ -28,9 +28,9 @@ export function buildGuyMesh(color){
 }
 
 // (re)build the guy's look in place — SVG sprite if Adam drew one, blocks if not
-export function fillGuyMesh(g, color){
+export function fillGuyMesh(g, color, sprite = true){
   while(g.children.length) g.remove(g.children[0]);
-  const tex = artTex('guy');
+  const tex = sprite ? artTex('guy') : null;     // top-down = Adam's sprite; 3D cams = the block guy
   if(tex){
     const quad = new THREE.Mesh(
       new THREE.PlaneGeometry(1.8, 1.8),

@@ -77,16 +77,10 @@ button.big:active { transform: translateY(3px); border-bottom-width: 2px; }
 }
 #toast.show { opacity: 1; transform: translateX(-50%) scale(1); }
 
-/* ---------- the cursor ---------- */
-body.playing, body.playing * { cursor: none !important; }
-#cur {
-  position: fixed; left: -100px; top: -100px; width: 32px; height: 32px;
-  pointer-events: none; display: none; z-index: 99;
-  transform: translate(-50%, -50%);
-}
-#cur svg { display: block; width: 32px; height: 32px; image-rendering: pixelated; }
-body.playing #cur { display: block; }
-#cur.press { transform: translate(-50%, -50%) scale(.8); }
+/* ---------- the cursor: a native CSS cursor (crisp SVG, zero lag) ---------- */
+body.playing, body.playing * { cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2232%22%20height%3D%2232%22%20viewBox%3D%220%200%2032%2032%22%20shape-rendering%3D%22crispEdges%22%3E%3Cpath%20fill%3D%22%23c43f38%22%20d%3D%22M1%201h12v6H7v6H1z%20M31%201v12h-6V7h-6V1z%20M1%2031V19h6v6h6v6z%20M31%2031H19v-6h6v-6h6z%22/%3E%3Cpath%20fill%3D%22%23e8574f%22%20d%3D%22M2%202h10v4H6v6H2z%20M30%202v10h-4V6h-6V2z%20M2%2030V20h4v6h6v4z%20M30%2030H20v-4h6v-6h4z%22/%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23c43f38%22/%3E%3Crect%20x%3D%2213%22%20y%3D%2213%22%20width%3D%226%22%20height%3D%226%22%20fill%3D%22%23e8574f%22/%3E%3C/svg%3E") 16 16, crosshair !important; }
+body.locked, body.locked * { cursor: none !important; }
+#cur { display: none !important; }
 
 /* ---------- the catalog: concentric rings at the cursor ---------- */
 #ring { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 50; overflow: visible; }
