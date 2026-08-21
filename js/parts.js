@@ -10,7 +10,9 @@ import { box, disc, rrect, blob, art } from './draw.js';
 import { hasArt } from './art.js';
 
 export const CELL = 0.3;                 // fine grid step (x and y)
-export const keyOf = (i, j) => i + ',' + j;
+export const keyOf = (i, j, l = 0) => i + ',' + j + ',' + l;
+// "i,j" (old builds) or "i,j,l" -> [i, j, l]
+export const parseKey = k => { const a = k.split(',').map(Number); return [a[0], a[1], a[2] || 0]; };
 
 /* Categories — the inner rings of the catalog. Adding one here + `cat:` on parts is
    all it takes; the ring menu lays itself out. Order = clockwise from the top. */
@@ -109,10 +111,10 @@ export function localCenterOf(i, j, type){
   const [w, d] = fpOf(type);
   return { x: (i + (w - 1) / 2) * CELL, y: (j + (d - 1) / 2) * CELL };
 }
-// every cell a part covers, from its anchor
-export function* cellsOf(i, j, type){
+// every cell a part covers, from its anchor (on its layer)
+export function* cellsOf(i, j, type, l = 0){
   const [w, d] = fpOf(type);
-  for(let a = 0; a < w; a++) for(let b = 0; b < d; b++) yield [i + a, j + b];
+  for(let a = 0; a < w; a++) for(let b = 0; b < d; b++) yield [i + a, j + b, l];
 }
 // facing direction of a rotated part, in grid steps (rot 0 = up = forward)
 export function facingDir(rot){ return [[0, -1], [1, 0], [0, 1], [-1, 0]][rot & 3]; }

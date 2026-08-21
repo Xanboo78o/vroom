@@ -4,9 +4,10 @@
    Canvas renderer in world units; Adam's SVGs are the art (T hot-reloads).
    ============================================================================= */
 import { makeRing } from './ring.js';
-import { PARTS, PART_ORDER, CELL, fpOf, localCenterOf, drawPart, partIcon, clearIcons, keyOf, cellsOf } from './parts.js';
+import { PARTS, PART_ORDER, CELL, fpOf, localCenterOf, drawPart, partIcon, clearIcons, keyOf, cellsOf, parseKey } from './parts.js';
 import { makeMachine, starterLayout, serializeParts, loadParts, refresh, anchorFix, stepMachine, bumpMachines,
-         shearParts, cellWorld, worldToLocal, localToWorld, netSync, drawMachine, TUNE } from './machine.js';
+         shearParts, cellWorld, worldToLocal, localToWorld, netSync, drawMachine, topAt, TUNE } from './machine.js';
+import { GARAGE, inGarage, padOf, stepFlow, drawFlow, drawReadout } from './garage.js';
 import { buildWorld, WORLD, inPit, drawWorld, drawCanopy, surfaceAt } from './world.js';
 import { SURF } from './tracks.js';
 import { makeGuy, stepGuy, syncRemoteGuy, eject, drawGuy, GUY_SIZE } from './guy.js';
@@ -25,7 +26,7 @@ const G = {
   me: null, guys: new Map(), machines: new Map(), debris: new Map(),
   mode: 'menu', solo: true,
   cam: { x: 0, y: -215, dist: 20, zoom: 40 },   // dist ≈ the old camera height: 8..42
-  buildDist: 9,                                // build mode zooms in on the machine (wheel: 5..18)
+  buildDist: 11,                               // build mode zooms in on the machine + its readout (wheel: 5..18)
   buildCam: null,                              // frozen view point while building (Ctrl+G re-centres)
   shake: 0, shakeT: 0,
   input: {}, mouse: { sx: 0, sy: 0, x: 0, y: 0 },
@@ -103,6 +104,7 @@ async function startGame(opt){
   G.me = makeGuy(colorFor(pid), name);
   G.me.x = WORLD.spawn.x; G.me.y = WORLD.spawn.y;
   const spot = WORLD.parking[hash(pid) % WORLD.parking.length];
+  G.bay = spot; G.padIdx = hash(pid) % GARAGE.pads.length;
   const m = makeMachine(pid, spot.x, spot.y);
   m.parts = starterLayout(); refresh(m); snapshotBlue(m);
   G.machines.set(m.id, m);
@@ -394,27 +396,34 @@ function actionRepair(){
 }
 
 /* ---- build mode ----------------------------------------------------------- */
+function myPad(){ return GARAGE.pads[G.padIdx ?? 0]; }
+function myNearestMachine(maxD){ let t = null, bd = maxD; for(const m of G.machines.values()){ if(m.owner !== myPid()) continue; const d = Math.hypot(m.x - G.me.x, m.y - G.me.y); if(d < bd){ bd = d; t = m; } } return t; }
+/* put a machine on my aero-tunnel pad, nose into the wind */
+function parkOnPad(m){ const p = myPad(); m.x = p.x; m.y = p.y - 0.5; m.a = 0; m.vx = m.vy = m.w = 0; m.z = 0; m.air = false; m.grace = 1.5; if(m.net){ m.net.x = m.x; m.net.y = m.y; m.net.a = 0; } }
+function goGarage(){
+  const p = myPad();
+  const m = myNearestMachine(1e9);                    // my car comes along from wherever it is
+  if(m && !m.driver) parkOnPad(m);
+  G.me.x = p.x + p.w / 2 + 1.2; G.me.y = p.y + 2; G.me.z = 0;
+  G.cam.x = p.x; G.cam.y = p.y;
+  if(!G.solo){ sendGuy(); sendBuilds(); }
+  toast('→ GARAGE');
+}
 function toggleBuild(){
   if(G.mode === 'build'){ exitBuild(); return; }
   if(G.mode !== 'play') return;
   if(G.me.inMachine){ toast('hop out first (E)'); return; }
-  let target = null, bd = 7;
-  for(const m of G.machines.values()){
-    if(m.owner !== myPid()) continue;
-    const d = Math.hypot(m.x - G.me.x, m.y - G.me.y);
-    if(d < bd){ bd = d; target = m; }
-  }
-  if(target && !repairOK(target.x, target.y)){ toast('pit-only room — build in the yellow pads'); return; }
+  if(!inGarage(G.me.x, G.me.y)) goGarage();          // building happens in the garage
+  let target = myNearestMachine(12);
   if(!target){
-    if(!repairOK(G.me.x, G.me.y)){ toast('pit-only room — build in the yellow pads'); return; }
-    target = makeMachine(myPid(), G.me.x + Math.sin(G.me.yaw) * 3, G.me.y - Math.cos(G.me.yaw) * 3);
-    target.a = G.me.yaw;
+    target = makeMachine(myPid(), 0, 0);
     target.parts.set(key(0, 0), { type: 'frame', rot: 0 });
-    refresh(target);
+    refresh(target); snapshotBlue(target);
     G.machines.set(target.id, target);
   }
+  if(!padOf(target) || padOf(target) !== myPad()) parkOnPad(target);
   G.buildTarget = target.id;
-  target.editing = true; target.vx = target.vy = target.w = 0; target.z = WORLD.h(target.x, target.y); target.air = false;
+  target.editing = true; target.vx = target.vy = target.w = 0; target.z = 0; target.air = false;
   G.buildCam = { x: target.x, y: target.y };
   G.mode = 'build';
   if(!G.ring) G.ring = makeRing({ iconFor: partIcon, held: () => G.buildSel, onPick: selectPart });
@@ -422,7 +431,7 @@ function toggleBuild(){
 }
 function exitBuild(){
   const m = G.machines.get(G.buildTarget);
-  if(m){ m.editing = false; m.grace = 1.5; refresh(m); snapshotBlue(m); if(!G.solo) sendBuilds(); }   // settle never shears
+  if(m){ m.editing = false; m.grace = 1.5; m.fuel = 100; m.batt = 100; refresh(m); snapshotBlue(m); if(!G.solo) sendBuilds(); }   // settle never shears; the garage fills you up
   G.mode = 'play';
   if(G.ring) G.ring.close();
   G.ghost = null; G.buildCam = null;
@@ -434,25 +443,38 @@ function buildHover(){
   if(!m) return;
   if(G.ring && G.ring.isOpen) return;
   const L = worldToLocal(m, G.mouse.x, G.mouse.y);
-  // what's under the cursor (for X / middle-click)
   const ci = Math.round(L.x / CELL), cj = Math.round(L.y / CELL);
-  G.hoverKey = m.occ.get(key(ci, cj)) || null;
-  // footprint snapped under the cursor
+  const tl = topAt(m, ci, cj);                                   // topmost part under the cursor
+  const top = tl >= 0 ? m.occ.get(key(ci, cj, tl)) : null;
+  G.hoverKey = top;
   const [fw, fd] = fpOf(G.buildSel);
-  const ai = Math.round(L.x / CELL - (fw - 1) / 2), aj = Math.round(L.y / CELL - (fd - 1) / 2);
-  let touch = false;
-  for(let i = 0; i < fw; i++) for(let j = 0; j < fd; j++){
+  let ai, aj, al;
+  if(top){
+    // the top-down rule: MIDDLE of a part stacks UP, near an edge extends SIDEWAYS on that layer
+    const [oi, oj, ol] = parseKey(top); const [ow, od] = fpOf(m.parts.get(top).type);
+    const ux = L.x / CELL - (oi - 0.5), uy = L.y / CELL - (oj - 0.5);
+    const ex = Math.min(ux, ow - ux) / ow, ey = Math.min(uy, od - uy) / od;
+    if(Math.min(ex, ey) < 0.25){
+      al = ol;
+      if(ex <= ey){ ai = ux < ow / 2 ? oi - fw : oi + ow; aj = Math.round(L.y / CELL - (fd - 1) / 2); }
+      else        { aj = uy < od / 2 ? oj - fd : oj + od; ai = Math.round(L.x / CELL - (fw - 1) / 2); }
+    } else { al = ol + 1; ai = Math.round(L.x / CELL - (fw - 1) / 2); aj = Math.round(L.y / CELL - (fd - 1) / 2); }
+  } else { al = 0; ai = Math.round(L.x / CELL - (fw - 1) / 2); aj = Math.round(L.y / CELL - (fd - 1) / 2); }
+  // valid = footprint free on that layer + (layer 0: touching a neighbour · above: every cell supported)
+  let ok = true, touch = false;
+  for(let i = 0; i < fw && ok; i++) for(let j = 0; j < fd; j++){
     const cx = ai + i, cy = aj + j;
-    if(m.occ.has(key(cx, cy))) return;
-    for(const d of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if(m.occ.has(key(cx + d[0], cy + d[1]))) touch = true;
+    if(m.occ.has(key(cx, cy, al))){ ok = false; break; }
+    if(al === 0){ for(const d of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if(m.occ.has(key(cx + d[0], cy + d[1], 0))) touch = true; }
+    else if(!m.occ.has(key(cx, cy, al - 1))){ ok = false; break; }
   }
-  if(touch) G.ghost = { i: ai, j: aj };
+  if(ok && (al > 0 || touch)) G.ghost = { i: ai, j: aj, l: al };
 }
 function placePart(){
   const m = G.machines.get(G.buildTarget);
   if(!m || !G.ghost) return;
   const c0 = { ...m.center };
-  m.parts.set(key(G.ghost.i, G.ghost.j), { type: G.buildSel, rot: G.buildRot });
+  m.parts.set(key(G.ghost.i, G.ghost.j, G.ghost.l), { type: G.buildSel, rot: G.buildRot });
   refresh(m); anchorFix(m, c0);
   G.ghost = null;
 }
@@ -461,7 +483,12 @@ function removePart(){
   if(!m || !G.hoverKey || m.parts.size <= 1) return;
   const c0 = { ...m.center };
   const p = m.parts.get(G.hoverKey); const wp = cellWorld(m, G.hoverKey);
-  m.parts.delete(G.hoverKey);
+  // anything stacked on it comes off too
+  const [ri, rj, rl] = parseKey(G.hoverKey); const [rw, rd] = fpOf(p.type);
+  const gone = [G.hoverKey];
+  for(let l = rl + 1; l < m.layers; l++) for(const [k] of m.parts){ const [i, j, kl] = parseKey(k); if(kl !== l) continue; const [w, d] = fpOf(m.parts.get(k).type);
+    if(i < ri + rw && i + w > ri && j < rj + rd && j + d > rj && !gone.includes(k)) gone.push(k); }
+  for(const k of gone) m.parts.delete(k);
   refresh(m); anchorFix(m, c0);
   if(p) burst(wp.x, wp.y, 5, PARTS[p.type].color, 3, 0.08);
   G.hoverKey = null;
@@ -473,10 +500,10 @@ function drawBuildOverlay(ctx, zoom){
   const R = 7;
   const i0 = Math.round(m.center.x / CELL) - R, i1 = Math.round(m.center.x / CELL) + R, j0 = Math.round(m.center.y / CELL) - R, j1 = Math.round(m.center.y / CELL) + R;
   ctx.fillStyle = rgba(PAL.ink, 0.16);
-  for(let i = i0; i <= i1; i++) for(let j = j0; j <= j1; j++){ if(m.occ.has(key(i, j))) continue; ctx.beginPath(); ctx.arc(i * CELL - m.center.x, j * CELL - m.center.y, 0.028, 0, Math.PI * 2); ctx.fill(); }
+  for(let i = i0; i <= i1; i++) for(let j = j0; j <= j1; j++){ if(m.occ.has(key(i, j, 0))) continue; ctx.beginPath(); ctx.arc(i * CELL - m.center.x, j * CELL - m.center.y, 0.028, 0, Math.PI * 2); ctx.fill(); }
   // hovered part outline (removal target)
   if(G.hoverKey && !G.ghost){
-    const p = m.parts.get(G.hoverKey); const [i, j] = G.hoverKey.split(',').map(Number); const [w, d] = fpOf(p.type);
+    const p = m.parts.get(G.hoverKey); const [i, j] = parseKey(G.hoverKey); const [w, d] = fpOf(p.type);
     rrect(ctx, i * CELL - CELL / 2 - m.center.x, j * CELL - CELL / 2 - m.center.y, w * CELL, d * CELL, 0.08);
     ctx.lineWidth = 0.05; ctx.strokeStyle = rgba(PAL.red, 0.8); ctx.stroke();
   }
@@ -485,6 +512,7 @@ function drawBuildOverlay(ctx, zoom){
     const c = localCenterOf(G.ghost.i, G.ghost.j, G.buildSel);
     ctx.save(); ctx.translate(c.x - m.center.x, c.y - m.center.y);
     drawPart(ctx, G.buildSel, G.buildRot, zoom, 0.55);
+    if(G.ghost.l > 0){ const [w, d] = fpOf(G.buildSel).map(v => v * CELL); ctx.beginPath(); ctx.arc(w / 2 - 0.09, -d / 2 + 0.09, 0.085, 0, Math.PI * 2); ctx.fillStyle = hex(PAL.ink); ctx.fill(); ctx.fillStyle = hex(PAL.paper); ctx.font = '900 0.12px Trebuchet MS, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(G.ghost.l + 1), w / 2 - 0.09, -d / 2 + 0.1); }
     ctx.restore();
   }
   ctx.restore();
@@ -495,13 +523,13 @@ function stepLap(m){
   const L = G.lap;
   if(L.track < 0){
     for(let i = 0; i < WORLD.tracks.length; i++){
-      const c0 = WORLD.tracks[i].cps[0];
+      const c0 = WORLD.tracks[i].cps[0]; if(!c0) continue;
       if(Math.hypot(m.x - c0.x, m.y - c0.y) < c0.r){ L.track = i; L.next = 1; L.t0 = performance.now(); return; }
     }
     return;
   }
   const tr = WORLD.tracks[L.track], cps = tr.cps, nx = L.next;
-  for(let i = 0; i < WORLD.tracks.length; i++){ if(i === L.track) continue; const c0 = WORLD.tracks[i].cps[0];
+  for(let i = 0; i < WORLD.tracks.length; i++){ if(i === L.track) continue; const c0 = WORLD.tracks[i].cps[0]; if(!c0) continue;
     if(Math.hypot(m.x - c0.x, m.y - c0.y) < c0.r){ L.track = i; L.next = 1; L.t0 = performance.now(); return; } }
   if(tr.closed){
     const c = cps[nx % cps.length];
@@ -544,6 +572,17 @@ function stepPads(dt, drv){
 }
 function teleportTo(trackId, drv){
   const tr = trackById(trackId); if(!tr) return;
+  if(trackId === 'garage'){           // my aero-tunnel pad
+    if(drv){ drv.driver = null; drv.throttle = 0; G.me.inMachine = null; if(!G.solo) NET.send('seat', { mid: drv.id, driver: null }); }
+    goGarage(); G.padT = -2; G.lap.track = -1; G.lap.next = -1; return;
+  }
+  if(trackId === 'home'){             // back to the paddock: machine to my bay, me by it
+    const m = drv || myNearestMachine(14);
+    if(m){ if(drv){ drv.driver = null; drv.throttle = 0; G.me.inMachine = null; if(!G.solo) NET.send('seat', { mid: drv.id, driver: null }); }
+      m.x = G.bay.x; m.y = G.bay.y; m.a = 0; m.vx = m.vy = m.w = 0; m.z = 0; m.air = false; m.grace = 1.5; if(m.net){ m.net.x = m.x; m.net.y = m.y; m.net.a = 0; } }
+    G.me.x = WORLD.spawn.x; G.me.y = WORLD.spawn.y; G.me.z = 0; G.cam.x = G.me.x; G.cam.y = G.me.y;
+    G.lap.track = -1; G.lap.next = -1; if(!G.solo){ sendGuy(); sendBuilds(); } toast('→ PADDOCK'); return;
+  }
   const st = tr.start;
   const park = (m) => { m.x = st.x; m.y = st.y; m.a = st.a; m.vx = m.vy = m.w = 0; m.z = WORLD.h(m.x, m.y); m.air = false; m.grace = 1.5; if(m.net){ m.net.x = m.x; m.net.y = m.y; m.net.a = m.a; } };
   if(drv) park(drv);
@@ -652,7 +691,7 @@ function loop(t){
       if(drv.fuel > before) pitFlash(t);
     }
   }
-  if(G.mode === 'build') buildHover();
+  if(G.mode === 'build'){ buildHover(); const bm = G.machines.get(G.buildTarget); if(bm) stepFlow(dt, bm); }
 
   camera(dt, drv);
   render(ts);
@@ -705,8 +744,8 @@ function render(ts){
   const view = { x0: cx - G.W / 2 / z, x1: cx + G.W / 2 / z, y0: cy - G.H / 2 / z, y1: cy + G.H / 2 / z };
   drawWorld(ctx, view, z, ts);
   drawDebris(ctx, z);
-  for(const m of G.machines.values()) drawMachine(ctx, m, z, ts);
-  if(G.mode === 'build') drawBuildOverlay(ctx, z);
+  for(const m of G.machines.values()) drawMachine(ctx, m, z, ts, 1, { com: G.mode === 'build' && m.id === G.buildTarget });
+  if(G.mode === 'build'){ const bm = G.machines.get(G.buildTarget); if(bm){ drawFlow(ctx); drawReadout(ctx, bm); } drawBuildOverlay(ctx, z); }
   for(const g of G.guys.values()) drawGuy(ctx, g, z, ts);
   if(G.me) drawGuy(ctx, G.me, z, ts);
   // carried parts float by the guy
@@ -733,7 +772,7 @@ function hud(drv, t){
   } else {
     sp.style.display = 'none'; $('#bars').style.display = 'none'; lapEl.style.display = 'none';
     let p = '';
-    if(G.mode === 'build') p = 'right-click: catalog · click add · X remove · R rotate · Ctrl+G recenter · B done';
+    if(G.mode === 'build') p = 'right-click: catalog · click add (middle = stack up, edge = sideways) · X remove · R rotate · Ctrl+G recenter · B done';
     else {
       let nearSeat = false, nearDb = false;
       for(const m of G.machines.values()){ if(!m.seatKey || m.driver) continue; const s = cellWorld(m, m.seatKey); if(Math.hypot(s.x - G.me.x, s.y - G.me.y) < 2.6){ nearSeat = true; break; } }
@@ -743,7 +782,7 @@ function hud(drv, t){
       const pad = G.padT > 0 ? WORLD.pads.find(pp => Math.hypot(G.me.x - pp.x, G.me.y - pp.y) < pp.r) : null;
       p = pad ? '→ ' + pad.name + ' …' : nearSeat ? 'E — hop in' : nearDb ? 'F — grab part'
         : nearMine ? 'F — bolt ' + G.carried.length + ' carried part' + (G.carried.length > 1 ? 's' : '') + ' on'
-        : 'WASD walk · B build';
+        : inGarage(G.me.x, G.me.y) ? 'B build · test drive the loop · pad → PADDOCK' : 'WASD walk · B build (→ garage)';
     }
     prompt(p);
   }

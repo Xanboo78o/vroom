@@ -12,6 +12,7 @@ import { box, disc, rrect, blob, art, shadow, label } from './draw.js';
 import { buildTracks, drawTracks, SURF, GRIP, paintSurface, TRK } from './tracks.js';
 import { buildCorner, drawCorner } from './corner.js';
 import { initTiles, pat } from './tiles.js';
+import { buildGarage, drawGarage } from './garage.js';
 
 export const WORLD = {
   size: 1000,       // half-extent; the map is 2 km across (1 u ≈ 1.4 m)
@@ -99,6 +100,8 @@ export function buildWorld(){
   WORLD.rocks = [[-108, -206, 1.2], [-78, -226, 0.9], [124, -244, 1.1], [148, -186, 0.9], [-36, -160, 1.0], [38, -162, 0.9]];
   // Kris's Corner (the cast + furniture) + hidden walls
   buildCorner(WORLD, { wall });
+  // THE GARAGE (press B): build pads = aero tunnels, test loop, pads both ways
+  buildGarage(WORLD, { wall });
   // perimeter walls + an infield block
   const S = WORLD.size;
   wall(0, -S, 2 * S, 2, 2); wall(0, S, 2 * S, 2, 2); wall(-S, 0, 2, 2 * S, 2); wall(S, 0, 2, 2 * S, 2);
@@ -179,6 +182,7 @@ export function drawWorld(ctx, view, zoom, t){
   } }
   // tracks
   drawTracks(ctx, view, zoom);
+  drawGarage(ctx, view, zoom, t);
   // pit lane + pads + pit boxes (painted)
   { const L = WORLD.pitLane; if(vis(view, L.x, L.y, 50)){
     rrect(ctx, L.x - L.w / 2, L.y - L.d / 2, L.w, L.d, 1); ctx.fillStyle = pat(ctx, 'pit', zoom); ctx.fill();

@@ -10,7 +10,11 @@ All the art is SVG — see `ART.md` — Adam draws it, the game hot-reloads it (
   plays at https://xanboo78o.github.io/vroom/3d/
 
 ## The rules of the machine
-- A machine is ONE layer of tiles on a fine grid; frames 1×1/2×2/3×3, everything else 2×2
+- A machine is tiles on a fine grid, STACKED in layers (full 2D: you see the top tile, a badge counts the
+  stack); frames 1×1/2×2/3×3, everything else 2×2. Hover the MIDDLE of a block to stack on it, an EDGE to
+  extend sideways. Only layer-0 wheels touch the ground
+- It pivots on its CENTRE OF MASS; wheels closer to it carry more weight (more grip) — the garage readout
+  shows mass, drag, cross-section (width × height), front/rear balance, layers
 - Engines burn fuel and need an **intake with clear air ahead** — cover it and the engine chokes
 - Motors drain **batteries**; **fans** recharge them from airflow while you drive
 - Engine + motor together = hybrid = extra VROOM (Shift)
@@ -19,12 +23,16 @@ All the art is SVG — see `ART.md` — Adam draws it, the game hot-reloads it (
 - Ramps launch you (blob shadow = height); belly-flops can pop a wheel
 - Pit pads (yellow) refuel + recharge; rooms can be "repairs anywhere" or "pit only"
 - Teleport pads in Kris's Corner take you to every track (Paddock GP, L8TER, Switchback,
-  the Bowl, Otterbend, Lost Woods)
+  the Bowl, Otterbend, Lost Woods) and to the GARAGE
+- **B = go to the GARAGE**: your car lands on your AERO TUNNEL pad (air streams over it live, bends
+  around blocks, gets sucked into breathing intakes), you build top-down, leaving build mode fills the
+  tank; a small all-terrain TEST LOOP (asphalt + bump → gravel → sand → grass + puddle, lap-timed) is
+  right there; the PADDOCK pad takes you home
 
 ## Controls
 WASD / arrows drive (on foot: W walks toward the mouse, S away, A/D strafe) · Space jump ·
-E hop in/out · B build (right-click = the ring catalog, click add, X / middle remove, R rotate,
-Ctrl+G recenter the build view) · F grab/bolt parts · Q full repair · Shift boost (or run) · wheel zoom · M mute VC · T reload art
+E hop in/out · B garage/build (right-click = the ring catalog, click add — middle of a block stacks, edge extends —
+X / middle remove (takes the stack above with it), R rotate, Ctrl+G recenter the build view) · F grab/bolt parts · Q full repair · Shift boost (or run) · wheel zoom · M mute VC · T reload art
 
 ## Netcode
 Supabase Realtime rooms (4-letter codes) + WebRTC voice mesh — recipes from the
