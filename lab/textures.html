@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>kRacing texture lab</title>
+<style>
+  body { margin: 0; background: #2a2d33; color: #fdf6e4; font-family: 'Trebuchet MS', system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 14px 18px 4px; letter-spacing: 1px; }
+  .bar { margin: 0 18px 10px; display: flex; gap: 16px; align-items: center; font-weight: 700; flex-wrap: wrap; }
+  .bar label { display: flex; gap: 8px; align-items: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 14px; padding: 0 18px 30px; }
+  .card { background: #1d2025; border: 3px solid #3a3f48; border-radius: 12px; overflow: hidden; }
+  .card h2 { margin: 0; padding: 8px 12px; font-size: 15px; background: #3a3f48; display: flex; justify-content: space-between; }
+  .card h2 span { opacity: .7; font-weight: 400; font-size: 12px; }
+  canvas { display: block; width: 100%; image-rendering: auto; }
+  .card.pix canvas { image-rendering: pixelated; }
+  .tag { display: inline-block; background: #ef4b42; color: #fff; border-radius: 6px; padding: 0 8px; margin-right: 8px; }
+</style></head><body>
+<h1>kRacing texture lab — same scene, different texture recipes. Say the letter.</h1>
+<div class="bar">
+  <label>zoom <input id="zoom" type="range" min="10" max="64" value="28"> <b id="zv">28</b> px/u</label>
+  <label><input id="smooth" type="checkbox" checked> smooth scaling</label>
+  <label>stripe width <input id="stripe" type="range" min="1" max="8" value="4" step="0.5"> <b id="sv">4</b> u</label>
+  <label>detail <input id="detail" type="range" min="0" max="2" value="0.2" step="0.1"> <b id="dv">0.2</b></label>
+</div>
+<div class="grid" id="grid"></div>
+<script type="module">
+import { PAL, hex, shade, tint, rgba } from '../js/palette.js';
+const TILE_U = 8;
+const STYLES = [
+  { id: 'A', name: 'FLAT + STRIPES', note: 'pure flat colour, hard mowed stripes, nothing else' },
+  { id: 'B', name: 'POPPY ✓ (in the game at detail 0.2)', note: 'stripes + crisp clover dots; asphalt flat + few opaque specks/cracks' },
+  { id: 'C', name: 'HALFTONE', note: 'screen-print dot grid on everything' },
+  { id: 'D', name: 'HATCH', note: 'crisp diagonal lines (comic ink feel)' },
+  { id: 'E', name: 'PIXEL CHECKER', note: '1u two-tone checker (SNES kart vibe), pixelated' },
+  { id: 'F', name: 'BOLD BANDS', note: 'wide 2-tone bands + stripe pattern on asphalt edge, chunky outlines' },
+  { id: 'G', name: 'GRAIN (current)', note: 'the noisy one — for comparison' },
+];
+let ZOOM = 28, SMOOTH = true, STRIPE = 4, DETAIL = 0.2;
+let seed = 7; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296; const r = (a, b) => a + rnd() * (b - a);
+function tile(res, fn){ const c = document.createElement('canvas'); c.width = c.height = TILE_U * res; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; fn(x, res, c.width); return c; }
+const flat = (c) => (x, res, S) => { x.fillStyle = hex(c); x.fillRect(0, 0, S, S); };
+function stripes(x, res, S, base, k = .07){ x.fillStyle = hex(base); x.fillRect(0, 0, S, S); const sw = STRIPE * res; for(let y = 0, i = 0; y < S; y += sw, i++){ x.fillStyle = i % 2 ? rgba(0, .05) : rgba(0xffffff, k); x.fillRect(0, y, S, sw); } }
+function clover(x, res, S, base, n){ for(let i = 0; i < n; i++){ const px = r(0, S), py = r(0, S), rr = res * 0.11; x.fillStyle = hex(shade(base, .8)); for(const [dx, dy] of [[-1, 0], [1, 0], [0, -1]]){ x.beginPath(); x.arc(px + dx * rr * 0.9, py + dy * rr * 0.9, rr, 0, 7); x.fill(); } } }
+function specks(x, S, n, size, colA, colB){ for(let i = 0; i < n; i++){ x.fillStyle = hex(i % 2 ? colA : colB); const s = size * r(.7, 1.3); x.fillRect(Math.round(r(0, S)), Math.round(r(0, S)), Math.max(1, s), Math.max(1, s)); } }
+function cracks(x, res, S, col, n){ x.strokeStyle = hex(col); x.lineWidth = Math.max(1, res * 0.06); x.lineCap = 'round'; for(let k = 0; k < n; k++){ let px = r(0, S), py = r(0, S); x.beginPath(); x.moveTo(px, py); for(let j = 0; j < 5; j++){ px += r(-res, res); py += r(-res, res); x.lineTo(px, py); } x.stroke(); } }
+function joints(x, res, S, col){ x.strokeStyle = hex(col); x.lineWidth = Math.max(1, res * 0.07); x.beginPath(); for(const v of [0, S / 2]){ x.moveTo(0, v + .5); x.lineTo(S, v + .5); x.moveTo(v + .5, 0); x.lineTo(v + .5, S); } x.stroke(); }
+function dots(x, res, S, col, step, rad){ x.fillStyle = hex(col); const st = step * res; for(let py = st / 2; py < S; py += st) for(let px = ((py / st) | 0) % 2 ? st / 2 : 0; px < S; px += st){ x.beginPath(); x.arc(px, py, rad * res, 0, 7); x.fill(); } }
+function hatch(x, res, S, col, gap, lw){ x.strokeStyle = hex(col); x.lineWidth = Math.max(1, lw * res); x.beginPath(); const g = gap * res; for(let d = -S; d < 2 * S; d += g){ x.moveTo(d, 0); x.lineTo(d + S, S); } x.stroke(); }
+function checker(x, res, S, a, b, u){ const c = u * res; for(let py = 0; py < S; py += c) for(let px = 0; px < S; px += c){ x.fillStyle = hex(((px / c + py / c) | 0) % 2 ? a : b); x.fillRect(px, py, c, c); } }
+function grain(x, S, n){ for(let i = 0; i < n; i++){ x.fillStyle = i % 2 ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.12)'; const s = r(1, 2.5); x.fillRect(r(0, S), r(0, S), s, s); } }
+
+function recipes(id, res){
+  const D = DETAIL; seed = 7;
+  const G = PAL.grass, A = PAL.asphalt, C = PAL.concrete, H = PAL.shoulder;
+  switch(id){
+    case 'A': return { grass: tile(res, (x, rs, S) => stripes(x, rs, S, G)), asphalt: tile(res, flat(A)), concrete: tile(res, (x, rs, S) => { flat(C)(x, rs, S); joints(x, rs, S, shade(C, .85)); }), shoulder: tile(res, flat(H)) };
+    case 'B': return {
+      grass: tile(res, (x, rs, S) => { stripes(x, rs, S, G); clover(x, rs, S, G, 40 * D); }),
+      asphalt: tile(res, (x, rs, S) => { flat(A)(x, rs, S); specks(x, S, 140 * D, rs * 0.12, tint(A, .22), shade(A, .8)); cracks(x, rs, S, shade(A, .72), 2 * D); }),
+      concrete: tile(res, (x, rs, S) => { flat(C)(x, rs, S); specks(x, S, 120 * D, rs * 0.1, tint(C, .2), shade(C, .82)); joints(x, rs, S, shade(C, .82)); }),
+      shoulder: tile(res, (x, rs, S) => { flat(H)(x, rs, S); specks(x, S, 60 * D, rs * 0.1, tint(H, .2), shade(H, .85)); }) };
+    case 'C': return {
+      grass: tile(res, (x, rs, S) => { stripes(x, rs, S, G, .05); dots(x, rs, S, shade(G, .84), 0.6, 0.11 * D); }),
+      asphalt: tile(res, (x, rs, S) => { flat(A)(x, rs, S); dots(x, rs, S, tint(A, .12), 0.5, 0.08 * D); }),
+      concrete: tile(res, (x, rs, S) => { flat(C)(x, rs, S); dots(x, rs, S, shade(C, .9), 0.5, 0.08 * D); joints(x, rs, S, shade(C, .8)); }),
+      shoulder: tile(res, (x, rs, S) => { flat(H)(x, rs, S); dots(x, rs, S, shade(H, .9), 0.5, 0.08 * D); }) };
+    case 'D': return {
+      grass: tile(res, (x, rs, S) => { stripes(x, rs, S, G); hatch(x, rs, S, shade(G, .86), 0.7, 0.06 * D); }),
+      asphalt: tile(res, (x, rs, S) => { flat(A)(x, rs, S); hatch(x, rs, S, shade(A, .88), 0.7, 0.05 * D); }),
+      concrete: tile(res, (x, rs, S) => { flat(C)(x, rs, S); hatch(x, rs, S, shade(C, .92), 0.7, 0.05 * D); joints(x, rs, S, shade(C, .8)); }),
+      shoulder: tile(res, (x, rs, S) => { flat(H)(x, rs, S); hatch(x, rs, S, shade(H, .9), 0.7, 0.05 * D); }) };
+    case 'E': return {
+      grass: tile(res, (x, rs, S) => checker(x, rs, S, G, shade(G, .9), 1)),
+      asphalt: tile(res, (x, rs, S) => checker(x, rs, S, A, shade(A, .94), 0.5)),
+      concrete: tile(res, (x, rs, S) => checker(x, rs, S, C, shade(C, .93), 1)),
+      shoulder: tile(res, (x, rs, S) => checker(x, rs, S, H, shade(H, .94), 0.5)) };
+    case 'F': return {
+      grass: tile(res, (x, rs, S) => { x.fillStyle = hex(G); x.fillRect(0, 0, S, S); x.fillStyle = hex(tint(G, .12)); x.fillRect(0, 0, S, S / 2); }),
+      asphalt: tile(res, flat(shade(A, .95))),
+      concrete: tile(res, (x, rs, S) => { flat(C)(x, rs, S); joints(x, rs, S, shade(C, .78)); }),
+      shoulder: tile(res, (x, rs, S) => { flat(H)(x, rs, S); hatch(x, rs, S, tint(H, .3), 0.8, 0.18); }) };
+    default: return {
+      grass: tile(res, (x, rs, S) => { flat(G)(x, rs, S); x.fillStyle = 'rgba(255,255,255,.075)'; x.fillRect(0, 0, S, S / 2); for(let i = 0; i < 2600 * D; i++){ x.strokeStyle = i % 2 ? rgba(tint(G, .22), .75) : rgba(shade(G, .8), .75); x.lineWidth = r(1.2, 2.4) * rs / 64; x.beginPath(); const px = r(0, S), py = r(0, S), L = r(5, 13) * rs / 64; x.moveTo(px, py); x.lineTo(px + r(-3, 3), py - L); x.stroke(); } }),
+      asphalt: tile(res, (x, rs, S) => { flat(A)(x, rs, S); grain(x, S, 9000 * D * rs / 64); }),
+      concrete: tile(res, (x, rs, S) => { flat(C)(x, rs, S); grain(x, S, 5000 * D * rs / 64); joints(x, rs, S, shade(C, .85)); }),
+      shoulder: tile(res, (x, rs, S) => { flat(H)(x, rs, S); grain(x, S, 5000 * D * rs / 64); }) };
+  }
+}
+/* the same little scene for every style: grass, a bending track with kerbs + edge lines, a concrete corner with a bay, a car, a tree, a cone */
+function scene(cv, T, bold = false){
+  const W = 14.5, Hh = 9.5, z = ZOOM; cv.width = Math.round(W * z); cv.height = Math.round(Hh * z);
+  const x = cv.getContext('2d'); x.imageSmoothingEnabled = SMOOTH; x.imageSmoothingQuality = 'high';
+  x.setTransform(z, 0, 0, z, 0, 0);
+  const P = n => { const p = x.createPattern(T[n], 'repeat'); p.setTransform(new DOMMatrix().scale(TILE_U / T[n].width)); return p; };
+  x.fillStyle = P('grass'); x.fillRect(0, 0, W, Hh);
+  // concrete apron corner + bay
+  x.fillStyle = P('concrete'); x.fillRect(0, 0, 5.2, 3.6); x.lineWidth = 0.12; x.strokeStyle = hex(shade(PAL.concrete, .75)); x.strokeRect(0, 0, 5.2, 3.6);
+  x.strokeStyle = hex(PAL.bay); x.lineWidth = 0.16; x.strokeRect(0.6, 0.5, 2.2, 2.6);
+  x.fillStyle = rgba(PAL.pad, .6); for(let k = 0; k < 4; k++){ x.fillRect(3.4 + k * 0.45, 0.2, 0.18, 1.4); }
+  // track: a bend
+  const path = () => { x.beginPath(); x.moveTo(-1, 7.2); x.quadraticCurveTo(7, 7.4, 16, 3.2); };
+  const stroke = (w, style, dash, cap = 'round') => { path(); x.lineWidth = w; x.strokeStyle = style; x.lineCap = cap; x.lineJoin = 'round'; x.setLineDash(dash || []); x.stroke(); x.setLineDash([]); };
+  stroke(3.2 + 1.6, P('shoulder'));
+  stroke(3.2, hex(PAL.edgeLine));
+  stroke(3.2 - 0.3, P('asphalt'));
+  stroke(0.2, hex(PAL.dash), [1.4, 2.4]);
+  // kerb on the outside of the bend (one side): offset curve approximated
+  x.save(); x.translate(0, -2.05); path(); x.lineWidth = 0.7; x.strokeStyle = hex(PAL.kerbCream); x.lineCap = 'butt'; x.stroke(); x.setLineDash([1.1, 1.1]); x.strokeStyle = hex(PAL.kerbRed); x.stroke(); x.setLineDash([]); x.restore();
+  // a car (tiles)
+  x.save(); x.translate(9.2, 5.9); x.rotate(-0.42);
+  const tile2 = (tx, ty, c, rr = 0.12) => { x.beginPath(); x.roundRect(tx - 0.3, ty - 0.3, 0.6, 0.6, rr); x.fillStyle = hex(c); x.fill(); x.lineWidth = bold ? 0.07 : 0.045; x.strokeStyle = hex(shade(c, .75)); x.stroke(); };
+  for(const [tx, ty] of [[-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9], [0.9, 0.9]]) tile2(tx, ty, PAL.wheel, 0.2);
+  tile2(-0.3, -0.9, PAL.engine); tile2(0.3, -0.9, PAL.intake); tile2(-0.3, -0.3, PAL.tank); tile2(0.3, -0.3, PAL.frame); tile2(-0.3, 0.3, PAL.seat); tile2(0.3, 0.3, PAL.frame); tile2(-0.3, 0.9, PAL.frame); tile2(0.3, 0.9, PAL.frame);
+  x.restore();
+  // tree + cone + flower
+  const disc = (cx, cy, rr, c, lw = 0.06) => { x.beginPath(); x.arc(cx, cy, rr, 0, 7); x.fillStyle = hex(c); x.fill(); if(lw){ x.lineWidth = bold ? lw * 1.6 : lw; x.strokeStyle = hex(shade(c, .8)); x.stroke(); } };
+  for(const [dx, dy, rr] of [[-0.45, 0.2, 0.62], [0.48, 0.22, 0.6], [0.05, -0.42, 0.62], [0, 0.05, 0.8]]) disc(12.3 + dx * 1.3, 1.8 + dy * 1.3, rr * 1.3, PAL.tree, 0.08);
+  disc(12.0, 1.3, 0.35, PAL.treeLight, 0);
+  x.beginPath(); x.roundRect(6.1, 1.4, 0.9, 0.9, 0.12); x.fillStyle = hex(PAL.cone); x.fill(); x.lineWidth = 0.05; x.strokeStyle = hex(shade(PAL.cone, .8)); x.stroke(); disc(6.55, 1.85, 0.28, tint(PAL.cone, .15), 0.04); disc(6.55, 1.85, 0.14, PAL.coneStripe, 0);
+  for(let k = 0; k < 5; k++){ const a = k / 5 * 6.28; disc(2.2 + Math.cos(a) * 0.14, 5.0 + Math.sin(a) * 0.14, 0.11, PAL.flowerP, 0); } disc(2.2, 5.0, 0.08, PAL.flowerC, 0);
+}
+const grid = document.getElementById('grid');
+const cards = STYLES.map(s => { const d = document.createElement('div'); d.className = 'card' + (s.id === 'E' ? ' pix' : ''); d.innerHTML = `<h2><div><span class="tag">${s.id}</span>${s.name}</div><span>${s.note}</span></h2><canvas></canvas>`; grid.appendChild(d); return { s, cv: d.querySelector('canvas') }; });
+function renderAll(){
+  const res = ZOOM <= 18 ? 16 : ZOOM <= 36 ? 32 : 64;
+  for(const { s, cv } of cards){ const T = recipes(s.id, res); scene(cv, T, s.id === 'F'); }
+}
+const $ = id => document.getElementById(id);
+$('zoom').oninput = e => { ZOOM = +e.target.value; $('zv').textContent = ZOOM; renderAll(); };
+$('smooth').onchange = e => { SMOOTH = e.target.checked; renderAll(); };
+$('stripe').oninput = e => { STRIPE = +e.target.value; $('sv').textContent = STRIPE; renderAll(); };
+$('detail').oninput = e => { DETAIL = +e.target.value; $('dv').textContent = DETAIL.toFixed(1); renderAll(); };
+renderAll();
+</script></body></html>

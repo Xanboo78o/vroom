@@ -123,6 +123,9 @@ export function drawPart(ctx, type, rot = 0, zoom = 40, alpha = 1, spin = 0, ste
   const [w, d] = sizeOf(type);
   ctx.save();
   ctx.rotate(rot * Math.PI / 2 + steer);
+  // contour: every block reads as a block
+  rrect(ctx, -w / 2 + 0.01, -d / 2 + 0.01, w - 0.02, d - 0.02, 0.06);
+  ctx.lineWidth = 0.05; ctx.strokeStyle = hex(shade(def.color, .55)); if(alpha < 1) ctx.globalAlpha *= alpha; ctx.stroke(); if(alpha < 1) ctx.globalAlpha /= alpha;
   let key = 'parts/' + def.art;
   if(!hasArt(key) && def.alt) key = 'parts/' + def.alt;
   if(!art(ctx, key, w, d, zoom, alpha)){

@@ -236,7 +236,7 @@ function inView(B, view){
 export function drawTracks(ctx, view, zoom){
   const vis = BUILT.filter(B => inView(B, view));
   // shoulders first (all), then surfaces, so joins/overlaps read right
-  const SH = pat(ctx, 'shoulder'), AS = pat(ctx, 'asphalt'), GR = pat(ctx, 'gravel'), GE = pat(ctx, 'sand'), PT = pat(ctx, 'pit');
+  const SH = pat(ctx, 'shoulder', zoom), AS = pat(ctx, 'asphalt', zoom), GR = pat(ctx, 'gravel', zoom), GE = pat(ctx, 'sand', zoom), PT = pat(ctx, 'pit', zoom);
   for(const B of vis){
     const gravel = B.T.surface === 'gravel';
     stroke(ctx, B.pts, B.closed, B.T.width + 3.6, gravel ? GE : SH);

@@ -121,9 +121,9 @@ function treeBlob(ctx, x, y, r){
 /* everything UNDER the machines */
 export function drawWorld(ctx, view, zoom, t){
   // grass (textured)
-  ctx.fillStyle = pat(ctx, 'grass');
+  ctx.fillStyle = pat(ctx, 'grass', zoom);
   ctx.fillRect(view.x0 - 2, view.y0 - 2, view.x1 - view.x0 + 4, view.y1 - view.y0 + 4);
-  for(const [px, py, pr] of WORLD.patches) if(vis(view, px, py, pr)){ ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fillStyle = pat(ctx, 'grassDark'); ctx.fill(); }
+  for(const [px, py, pr] of WORLD.patches) if(vis(view, px, py, pr)){ ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fillStyle = pat(ctx, 'grassDark', zoom); ctx.fill(); }
   // flowers on the grass (decoration only, deterministic)
   if(zoom > 9){
     const C = 6, i0 = Math.floor(view.x0 / C), i1 = Math.ceil(view.x1 / C), j0 = Math.floor(view.y0 / C), j1 = Math.ceil(view.y1 / C);
@@ -142,13 +142,13 @@ export function drawWorld(ctx, view, zoom, t){
   // Lake Tomathy
   { const K = WORLD.lake; if(vis(view, K.x, K.y, K.r + 2)){
     ctx.beginPath(); for(let a = 0; a <= 14; a++){ const an = a / 14 * Math.PI * 2, rr = K.r * (1 + 0.08 * Math.sin(an * 3 + 1)); const px = K.x + Math.cos(an) * rr, py = K.y + Math.sin(an) * rr; a ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
-    ctx.closePath(); ctx.fillStyle = pat(ctx, 'water'); ctx.fill(); ctx.lineWidth = 0.4; ctx.strokeStyle = hex(PAL.plaza); ctx.stroke();
+    ctx.closePath(); ctx.fillStyle = pat(ctx, 'water', zoom); ctx.fill(); ctx.lineWidth = 0.4; ctx.strokeStyle = hex(PAL.plaza); ctx.stroke();
     for(let i = 0; i < 4; i++){ const wx = K.x - 8 + i * 5 + Math.sin(t * 0.8 + i) * 0.6, wy = K.y + 4 - i * 3; ctx.strokeStyle = rgba(0xffffff, 0.6); ctx.lineWidth = 0.16; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(wx - 1, wy); ctx.quadraticCurveTo(wx, wy - 0.5, wx + 1, wy); ctx.stroke(); }
     label(ctx, 'Lake Tomathy', K.x, K.y + K.r + 1.6, 0.9, PAL.paper, { bg: PAL.blueDark });
   } }
   // the paddock apron: concrete + painted bays + "KRIS'S CORNER" on the ground
   { const A = WORLD.apron; if(vis(view, A.x, A.y, 70)){
-    rrect(ctx, A.x - A.w / 2, A.y - A.d / 2, A.w, A.d, 1.2); ctx.fillStyle = pat(ctx, 'concrete'); ctx.fill(); ctx.lineWidth = 0.35; ctx.strokeStyle = hex(shade(PAL.concrete, .78)); ctx.stroke();
+    rrect(ctx, A.x - A.w / 2, A.y - A.d / 2, A.w, A.d, 1.2); ctx.fillStyle = pat(ctx, 'concrete', zoom); ctx.fill(); ctx.lineWidth = 0.35; ctx.strokeStyle = hex(shade(PAL.concrete, .78)); ctx.stroke();
     ctx.lineWidth = 0.22; ctx.strokeStyle = rgba(PAL.bay, 0.85);
     WORLD.bays.forEach((b, i) => { rrect(ctx, b.x - b.w / 2, b.y - b.d / 2, b.w, b.d, 0.2); ctx.stroke(); label(ctx, String(i + 1), b.x, b.y + b.d / 2 - 0.8, 0.9, PAL.bay); });
     ctx.save(); ctx.globalAlpha = 0.3; label(ctx, "KRIS'S CORNER", 0, -206.5, 2.2, PAL.paper, { font: "Impact, 'Arial Black', sans-serif", weight: 900 }); ctx.restore();
@@ -181,7 +181,7 @@ export function drawWorld(ctx, view, zoom, t){
   drawTracks(ctx, view, zoom);
   // pit lane + pads + pit boxes (painted)
   { const L = WORLD.pitLane; if(vis(view, L.x, L.y, 50)){
-    rrect(ctx, L.x - L.w / 2, L.y - L.d / 2, L.w, L.d, 1); ctx.fillStyle = pat(ctx, 'pit'); ctx.fill();
+    rrect(ctx, L.x - L.w / 2, L.y - L.d / 2, L.w, L.d, 1); ctx.fillStyle = pat(ctx, 'pit', zoom); ctx.fill();
     ctx.lineWidth = 0.25; ctx.strokeStyle = rgba(PAL.edgeLine, 0.9); ctx.stroke();
     for(const px of [-28, 0, 28]){ rrect(ctx, px - 6, L.y - 4, 12, 8, 0.6); blob(ctx, PAL.pad, 0.14); label(ctx, 'PIT', px, L.y, 2.4, PAL.padDot, { font: "Impact, 'Arial Black', sans-serif", weight: 900 }); }
     ctx.setLineDash([1.5, 1]); ctx.lineWidth = 0.2; ctx.strokeStyle = rgba(PAL.edgeLine, 0.7); ctx.beginPath(); ctx.moveTo(L.x - L.w / 2, L.y + 3.6); ctx.lineTo(L.x + L.w / 2, L.y + 3.6); ctx.stroke(); ctx.setLineDash([]);   // pit speed line
@@ -196,7 +196,7 @@ export function drawWorld(ctx, view, zoom, t){
     rrect(ctx, -w / 2, -d / 2, w, d, 0.35); blob(ctx, PAL.ramp, 0.25);
     const g = ctx.createLinearGradient(0, d / 2, 0, -d / 2); g.addColorStop(0, rgba(PAL.rampSkirt, 0.15)); g.addColorStop(1, rgba(tint(PAL.ramp, .3), 0.9));
     rrect(ctx, -w / 2, -d / 2, w, d, 0.35); ctx.fillStyle = g; ctx.fill();
-    ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = pat(ctx, 'asphalt'); ctx.globalCompositeOperation = 'multiply'; rrect(ctx, -w / 2, -d / 2, w, d, 0.35); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = pat(ctx, 'asphalt', zoom); ctx.globalCompositeOperation = 'multiply'; rrect(ctx, -w / 2, -d / 2, w, d, 0.35); ctx.fill(); ctx.restore();
     ctx.strokeStyle = hex(PAL.chevron); ctx.lineWidth = 0.7; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for(let i = 1; i <= 3; i++){ const yy = d / 2 - i * d / 4; ctx.beginPath(); ctx.moveTo(-w * 0.28, yy + 1.6); ctx.lineTo(0, yy - 0.4); ctx.lineTo(w * 0.28, yy + 1.6); ctx.stroke(); }
     ctx.beginPath(); ctx.moveTo(-w / 2 + 0.2, -d / 2 + 0.25); ctx.lineTo(w / 2 - 0.2, -d / 2 + 0.25); ctx.strokeStyle = hex(PAL.rampSkirt); ctx.lineWidth = 0.5; ctx.stroke();   // the lip
