@@ -3,7 +3,7 @@
    friends on one hand-made map, knock each other's wheels off, steal them.
    ============================================================================= */
 import * as THREE from 'three';
-import { PARTS, PART_ORDER, CELL, buildPartMesh, mat, shade } from './parts.js';
+import { PARTS, PART_ORDER, CELLXZ, CELLY, fpOf, localCenterOf, buildPartMesh, mat, shade } from './parts.js';
 import { makeMachine, starterLayout, serializeParts, loadParts, refresh, rebuildMesh,
          syncMesh, stepMachine, bumpMachines, shearParts, cellWorld, TUNE } from './machine.js';
 import { buildWorld, WORLD, inPit } from './world.js';
@@ -90,6 +90,7 @@ async function startGame(opt){
   m.parts = starterLayout(); refresh(m); rebuildMesh(m);
   G.machines.set(m.id, m); G.scene.add(m.group);
   G.mode = 'play';
+  document.body.classList.add('playing');        // native cursor off, fun cursor on
   $('#menu').classList.add('hide');
   $('#hud').classList.remove('hide');
   if(!G.solo){ NET.send('hi', {}); sendBuilds(); }
@@ -202,6 +203,7 @@ function wireInput(){
         for(const m of G.machines.values()) rebuildMesh(m);
         if(G.me) fillGuyMesh(G.me.group, G.me.color);
         for(const [, g] of G.guys) fillGuyMesh(g.group, g.color);
+        renderTray();              // catalog icons show the new art too
         console.log('[art] reloaded:', loaded.join(', ') || '(none drawn yet)');
       });
     }
@@ -215,10 +217,15 @@ function wireInput(){
   addEventListener('keyup', e => { if(KEYMAP[e.code]) G.input[KEYMAP[e.code]] = false; });
 
   const cv = $('#c');
+  const cur = $('#cur');
   addEventListener('mousemove', e => {
     mouse.x = (e.clientX / innerWidth) * 2 - 1;
     mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+    cur.style.left = e.clientX + 'px';
+    cur.style.top = e.clientY + 'px';
   });
+  addEventListener('mousedown', () => cur.classList.add('press'));
+  addEventListener('mouseup', () => cur.classList.remove('press'));
   cv.addEventListener('mousedown', e => {
     if(G.mode !== 'build') return;
     if(e.button === 0) placePart();
@@ -256,9 +263,7 @@ function actionSeat(){
   let best = null, bd = 2.6;
   for(const mm of G.machines.values()){
     if(!mm.seatKey || mm.driver) continue;
-    const [x, y, z] = mm.seatKey.split(',').map(Number);
-    const sp = cellWorld(mm, x, y, z);
-    const d = sp.distanceTo(G.me.pos);
+    const d = cellWorld(mm, mm.seatKey).distanceTo(G.me.pos);
     if(d < bd){ bd = d; best = mm; }
   }
   if(!best) return;
@@ -283,8 +288,7 @@ function onImpact(m, J, at){
   anchorFix(m, c0); rebuildMesh(m);
   const list = [];
   for(const c of shed){
-    const [x, y, z] = c.k.split(',').map(Number);
-    const wp = cellWorld(m, x, y, z);
+    const wp = cellWorld(m, c.k);
     const db = { did: myPid() + ':' + (G.debrisN++), type: c.p.type, rot: c.p.rot,
       p: wp.toArray(), v: [m.vel.x * 0.5 + rnd(4), 5 + rnd(3), m.vel.z * 0.5 + rnd(4)],
       home: { mid: m.id, k: c.k } };
@@ -316,7 +320,7 @@ function stepDebris(dt){
     if(db.asleep) continue;
     db.vel.y -= 22 * dt;
     db.pos.addScaledVector(db.vel, dt);
-    const gy = WORLD.h(db.pos.x, db.pos.z) + CELL * 0.35;
+    const gy = WORLD.h(db.pos.x, db.pos.z) + CELLY * 0.35;
     if(db.pos.y < gy){
       db.pos.y = gy;
       db.vel.y *= -0.32; db.vel.x *= 0.7; db.vel.z *= 0.7;
@@ -435,7 +439,7 @@ function toggleBuild(){
   target.editing = true; target.vel.set(0, 0, 0); target.angVel.set(0, 0, 0);
   // stand it flat for editing
   target.quat.setFromEuler(new THREE.Euler(0, new THREE.Euler().setFromQuaternion(target.quat, 'YXZ').y, 0));
-  target.pos.y = WORLD.h(target.pos.x, target.pos.z) + target.half.y + CELL;
+  target.pos.y = WORLD.h(target.pos.x, target.pos.z) + target.half.y + CELLY;
   G.buildCamPos = target.pos.clone();
   G.mode = 'build';
   document.exitPointerLock && document.exitPointerLock();
@@ -445,7 +449,7 @@ function toggleBuild(){
 }
 function exitBuild(){
   const m = G.machines.get(G.buildTarget);
-  if(m){ m.editing = false; refresh(m); rebuildMesh(m); if(!G.solo) sendBuilds(); }
+  if(m){ m.editing = false; m.grace = 1.5; refresh(m); rebuildMesh(m); if(!G.solo) sendBuilds(); }   // settle drop never shears
   G.mode = 'play';
   $('#tray').classList.add('hide');
   if(G.ghost){ G.scene.remove(G.ghost); G.ghost = null; }
@@ -456,64 +460,92 @@ function selectPart(t){
   G.buildSel = t;
   [...document.querySelectorAll('.tbtn')].forEach(b => b.classList.toggle('sel', b.dataset.t === t));
 }
+/* the catalog: every part rendered top-down (ortho, no smoothing) into a tile */
+let iconR = null;
+function partIcon(type){
+  if(!iconR){
+    iconR = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
+    iconR.setSize(96, 96);
+  }
+  const sc = new THREE.Scene();
+  sc.add(new THREE.HemisphereLight(0xffffff, 0xcfe0b8, 1.15));
+  const dl = new THREE.DirectionalLight(0xfff4d6, 0.5); dl.position.set(2, 5, 3); sc.add(dl);
+  sc.add(buildPartMesh(type, 0));
+  const R = 0.55;                       // shared scale: a 1×1 LOOKS smaller than a 3×3
+  const cam = new THREE.OrthographicCamera(-R, R, R, -R, 0.1, 20);
+  cam.up.set(0, 0, -1); cam.position.set(0, 6, 0); cam.lookAt(0, 0, 0);
+  iconR.render(sc, cam);
+  return iconR.domElement.toDataURL();
+}
 function renderTray(){
   const tray = $('#trayBtns'); tray.innerHTML = '';
   for(const t of PART_ORDER){
     const b = document.createElement('button');
     b.className = 'tbtn' + (t === G.buildSel ? ' sel' : ''); b.dataset.t = t;
-    b.innerHTML = '<b>' + PARTS[t].key + '</b> ' + PARTS[t].label;
-    b.style.setProperty('--pc', '#' + PARTS[t].color.toString(16).padStart(6, '0'));
+    const img = new Image(); img.src = partIcon(t); img.draggable = false;
+    b.appendChild(img);
+    const tag = document.createElement('i'); tag.textContent = PARTS[t].label; b.appendChild(tag);
+    if(PARTS[t].key){ const kk = document.createElement('b'); kk.textContent = PARTS[t].key; b.appendChild(kk); }
     b.onclick = () => selectPart(t);
     tray.appendChild(b);
   }
 }
-function hasNeighbor(m, [x, y, z]){
-  for(const d of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])
-    if(m.parts.has(key(x + d[0], y + d[1], z + d[2]))) return true;
-  return false;
-}
-function setGhost(m, nc, on){
-  G.ghostCell = { cell: nc, on };
+function setGhost(m, nc){
+  G.ghostCell = { cell: nc };
   while(G.ghost.children.length) G.ghost.remove(G.ghost.children[0]);
   const gm = buildPartMesh(G.buildSel, G.buildRot);
   gm.traverse(ob => { if(ob.material){ ob.material = ob.material.clone(); ob.material.transparent = true; ob.material.opacity = 0.55; } });
   G.ghost.add(gm);
-  G.ghost.position.copy(cellWorld(m, ...nc));
+  G.ghost.position.copy(localCenterOf(nc[0], nc[1], nc[2], G.buildSel).sub(m.center).applyQuaternion(m.quat).add(m.pos));
   G.ghost.quaternion.copy(m.quat);
   G.ghost.visible = true;
 }
 function buildHover(){
   const m = G.machines.get(G.buildTarget);
   if(!m || !G.ghost) return;
-  ray.setFromCamera(mouse, G.camera);
-  const hits = ray.intersectObjects(m.group.children, true).filter(h => h.object.isMesh);
   G.ghostCell = null;
   G.ghost.visible = false;
+  ray.setFromCamera(mouse, G.camera);
+  const [fw, fd] = fpOf(G.buildSel);
+  const hits = ray.intersectObjects(m.group.children, true).filter(h => h.object.isMesh);
   let o = hits.length ? hits[0].object : null;
   while(o && !o.userData.cellKey) o = o.parent;
+  let y, ax, az;
   if(o){
-    // top-down rule: middle of a block stacks UP, near an edge extends sideways
-    const [cx, cy, cz] = o.userData.cellKey.split(',').map(Number);
-    const lp = m.group.worldToLocal(hits[0].point.clone()).add(m.center).divideScalar(CELL);
-    const dx = lp.x - cx, dz = lp.z - cz;
-    const ax = Math.abs(dx), az = Math.abs(dz);
-    let d;
-    if(Math.max(ax, az) > 0.33) d = ax >= az ? [Math.sign(dx) || 1, 0, 0] : [0, 0, Math.sign(dz) || 1];
-    else d = [0, 1, 0];
-    const nc = [cx + d[0], cy + d[1], cz + d[2]];
-    if(!m.parts.has(key(...nc))) setGhost(m, nc, o.userData.cellKey);
-    return;
+    // top-down rule: middle of a part stacks UP, near an edge extends SIDEWAYS (same layer)
+    const [ox, oy, oz] = o.userData.cellKey.split(',').map(Number);
+    const [ow, od] = fpOf(m.parts.get(o.userData.cellKey).type);
+    const hp = m.group.worldToLocal(hits[0].point.clone()).add(m.center);
+    const ux = hp.x / CELLXZ - (ox - 0.5), uz = hp.z / CELLXZ - (oz - 0.5);   // 0..ow / 0..od across the part
+    const ex = Math.min(ux, ow - ux) / ow, ez = Math.min(uz, od - uz) / od;   // 0 = on an edge, .5 = dead center
+    if(Math.min(ex, ez) < 0.25){
+      y = oy;
+      if(ex <= ez){ ax = ux < ow / 2 ? ox - fw : ox + ow; az = Math.round(hp.z / CELLXZ - (fd - 1) / 2); }
+      else        { az = uz < od / 2 ? oz - fd : oz + od; ax = Math.round(hp.x / CELLXZ - (fw - 1) / 2); }
+    } else {
+      y = oy + 1;
+      ax = Math.round(hp.x / CELLXZ - (fw - 1) / 2); az = Math.round(hp.z / CELLXZ - (fd - 1) / 2);
+    }
+  } else {
+    // open ground = bottom layer, beside the machine, footprint snapped under the cursor
+    let minY = 1e9;
+    for(const k of m.parts.keys()){ const yy = +k.split(',')[1]; if(yy < minY) minY = yy; }
+    const planeY = m.pos.y + (minY * CELLY - m.center.y);
+    const t = (planeY - ray.ray.origin.y) / ray.ray.direction.y;
+    if(!(t > 0)) return;
+    y = minY;
+    const lp = m.group.worldToLocal(ray.ray.origin.clone().addScaledVector(ray.ray.direction, t)).add(m.center);
+    ax = Math.round(lp.x / CELLXZ - (fw - 1) / 2); az = Math.round(lp.z / CELLXZ - (fd - 1) / 2);
   }
-  // missed the machine: aim at its bottom-layer plane, snap to the nearest cell
-  let minY = 1e9;
-  for(const k of m.parts.keys()){ const y = +k.split(',')[1]; if(y < minY) minY = y; }
-  const planeY = m.pos.y + (minY * CELL - m.center.y);
-  const t = (planeY - ray.ray.origin.y) / ray.ray.direction.y;
-  if(!(t > 0)) return;
-  const wp = ray.ray.origin.clone().addScaledVector(ray.ray.direction, t);
-  const lp = m.group.worldToLocal(wp).add(m.center).divideScalar(CELL);
-  const nc = [Math.round(lp.x), minY, Math.round(lp.z)];
-  if(!m.parts.has(key(...nc)) && hasNeighbor(m, nc)) setGhost(m, nc, null);
+  // valid = footprint free + touching the machine somewhere
+  let touch = false;
+  for(let i = 0; i < fw; i++) for(let j = 0; j < fd; j++){
+    const cx = ax + i, cz = az + j;
+    if(m.occ.has(key(cx, y, cz))) return;
+    for(const d of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])
+      if(m.occ.has(key(cx + d[0], y + d[1], cz + d[2]))) touch = true;
+  }
+  if(touch) setGhost(m, [ax, y, az]);
 }
 function placePart(){
   const m = G.machines.get(G.buildTarget);
@@ -521,7 +553,7 @@ function placePart(){
   const c0 = m.center.clone();
   m.parts.set(key(...G.ghostCell.cell), { type: G.buildSel, rot: G.buildRot });
   refresh(m); anchorFix(m, c0); rebuildMesh(m);
-  m.pos.y = Math.max(m.pos.y, WORLD.h(m.pos.x, m.pos.z) + m.half.y + CELL * 0.5);
+  m.pos.y = Math.max(m.pos.y, WORLD.h(m.pos.x, m.pos.z) + m.half.y + CELLY * 0.5);
 }
 function removePart(){
   const m = G.machines.get(G.buildTarget);
@@ -692,8 +724,7 @@ function hud(drv, t){
       let nearSeat = false, nearDb = false;
       for(const m of G.machines.values()){
         if(!m.seatKey || m.driver) continue;
-        const [x, y, z] = m.seatKey.split(',').map(Number);
-        if(cellWorld(m, x, y, z).distanceTo(G.me.pos) < 2.6){ nearSeat = true; break; }
+        if(cellWorld(m, m.seatKey).distanceTo(G.me.pos) < 2.6){ nearSeat = true; break; }
       }
       for(const db of G.debris.values()) if(db.pos.distanceTo(G.me.pos) < 2.6){ nearDb = true; break; }
       let nearMine = false;

@@ -6,10 +6,17 @@
    fans charge batteries from airflow; both at once = hybrid VROOM.
    ============================================================================= */
 import * as THREE from 'three';
-import { PARTS, CELL, buildPartMesh, facingDir } from './parts.js';
+import { PARTS, CELLXZ, CELLY, fpOf, localCenterOf, buildPartMesh, facingDir } from './parts.js';
 
 const G = 22;                    // gravity, tuned arcade-heavy
 const key = (x, y, z) => x + ',' + y + ',' + z;
+const CELL = CELLY;              // legacy uses (wheel sizes, spawn lifts)
+
+// every cell a part covers, from its anchor
+function* cellsOf(x, y, z, type){
+  const [w, d] = fpOf(type);
+  for(let i = 0; i < w; i++) for(let j = 0; j < d; j++) yield [x + i, y, z + j];
+}
 
 export const TUNE = {
   engP: 95,          // drive force per breathing engine
@@ -20,7 +27,7 @@ export const TUNE = {
   boostRate: 14,
   fanRate: 0.16,     // battery % per second per fan per unit speed
   dragBase: 0.012,
-  dragArea: 0.010,   // per frontal cell — shape matters
+  dragArea: 0.005,   // per frontal cell (fine grid) — shape matters
   grip: 8.5,
   steerMax: 0.55,
   spring: 260, damper: 26,
@@ -35,7 +42,8 @@ export function makeMachine(owner, pos){
     owner, driver: null,
     pos: pos.clone(), quat: new THREE.Quaternion(),
     vel: new THREE.Vector3(), angVel: new THREE.Vector3(),
-    parts: new Map(),            // "x,y,z" -> {type, rot}
+    parts: new Map(),            // anchor "x,y,z" -> {type, rot}
+    occ: new Map(),              // every covered cell "x,y,z" -> anchor key
     fuel: 100, batt: 100, grace: 2,   // no shearing right after spawn/settle
     steer: 0, throttle: 0, boosting: false,
     // caches (rebuilt by refresh())
@@ -49,18 +57,18 @@ export function makeMachine(owner, pos){
   };
 }
 
-// the starter machine everyone spawns with — hand-authored layout
+// the starter machine everyone spawns with — hand-authored layout (fine grid)
 export function starterLayout(){
   const p = new Map();
-  for(let z = -1; z <= 2; z++) for(let x = -1; x <= 0; x++) p.set(key(x, 0, z), { type: 'frame', rot: 0 });
-  p.set(key(0, 1, 0), { type: 'seat', rot: 0 });
-  p.set(key(-1, 1, 2), { type: 'engine', rot: 0 });
-  p.set(key(0, 1, 2), { type: 'intake', rot: 0 });
-  p.set(key(-1, 1, 1), { type: 'tank', rot: 0 });
-  p.set(key(-2, 0, 2), { type: 'wheel', rot: 0 });
-  p.set(key(1, 0, 2), { type: 'wheel', rot: 0 });
-  p.set(key(-2, 0, -1), { type: 'wheel', rot: 0 });
-  p.set(key(1, 0, -1), { type: 'wheel', rot: 0 });
+  for(const z of [-2, 0, 2, 4]) for(const x of [-2, 0]) p.set(key(x, 0, z), { type: 'frame', rot: 0 });
+  p.set(key(-1, 1, 0), { type: 'seat', rot: 0 });
+  p.set(key(-2, 1, 4), { type: 'engine', rot: 0 });
+  p.set(key(0, 1, 4), { type: 'intake', rot: 0 });
+  p.set(key(-2, 1, 2), { type: 'tank', rot: 0 });
+  p.set(key(-4, 0, 4), { type: 'wheel', rot: 0 });
+  p.set(key(2, 0, 4), { type: 'wheel', rot: 0 });
+  p.set(key(-4, 0, -2), { type: 'wheel', rot: 0 });
+  p.set(key(2, 0, -2), { type: 'wheel', rot: 0 });
   return p;
 }
 
@@ -76,8 +84,9 @@ export function loadParts(m, arr){
 /* ---- derived caches ------------------------------------------------------ */
 export function refresh(m){
   let mass = 0, engines = 0, motors = 0, fans = 0, freeFans = 0, wings = 0,
-      tanks = 0, batts = 0, freeIntakes = 0;
+      tanks = 0, batts = 0;
   m.wheels = []; m.seatKey = null;
+  m.occ.clear();
   const min = new THREE.Vector3(1e9, 1e9, 1e9), max = new THREE.Vector3(-1e9, -1e9, -1e9);
   const frontCells = new Set();
 
@@ -85,26 +94,43 @@ export function refresh(m){
     const [x, y, z] = k.split(',').map(Number);
     const def = PARTS[p.type];
     mass += def.mass;
-    min.min(new THREE.Vector3(x, y, z)); max.max(new THREE.Vector3(x, y, z));
-    frontCells.add(x + '|' + y);
+    for(const [cx, cy, cz] of cellsOf(x, y, z, p.type)){
+      m.occ.set(key(cx, cy, cz), k);
+      min.min(new THREE.Vector3(cx, cy, cz)); max.max(new THREE.Vector3(cx, cy, cz));
+      frontCells.add(cx + '|' + cy);
+    }
     if(p.type === 'seat' && !m.seatKey) m.seatKey = k;
     if(p.type === 'engine') engines++;
     if(p.type === 'motor') motors++;
     if(p.type === 'tank') tanks++;
     if(p.type === 'battery') batts++;
     if(p.type === 'wing') wings++;
-    if(p.type === 'intake' || p.type === 'fan'){
-      const d = facingDir(p.rot);
-      const clear = !m.parts.has(key(x + d[0], y + d[1], z + d[2]));
-      if(p.type === 'intake' && clear) freeIntakes++;
-      if(p.type === 'fan'){ fans++; if(clear) freeFans++; }
+    if(p.type === 'fan') fans++;
+    if(p.type === 'wheel'){
+      const c = localCenterOf(x, y, z, p.type);
+      m.wheels.push({ k, lx: c.x, ly: c.y, lz: c.z, steer: false, spin: 0 });
     }
-    if(p.type === 'wheel') m.wheels.push({ k, x, y, z, steer: false, spin: 0 });
   }
   if(m.parts.size === 0){ m.mass = 1; return; }
 
-  m.center.set((min.x + max.x) / 2, (min.y + max.y) / 2, (min.z + max.z) / 2).multiplyScalar(CELL);
-  m.half.set((max.x - min.x) / 2 + .5, (max.y - min.y) / 2 + .5, (max.z - min.z) / 2 + .5).multiplyScalar(CELL);
+  // breathing check needs the finished occupancy: every cell one step ahead of
+  // the part's footprint (in its facing) must be open air
+  let freeIntakes = 0;
+  for(const [k, p] of m.parts){
+    if(p.type !== 'intake' && p.type !== 'fan') continue;
+    const [x, y, z] = k.split(',').map(Number);
+    const d = facingDir(p.rot);
+    let clear = true;
+    for(const [cx, cy, cz] of cellsOf(x, y, z, p.type)){
+      const nk = key(cx + d[0], cy + d[1], cz + d[2]);
+      if(m.occ.has(nk) && m.occ.get(nk) !== k){ clear = false; break; }
+    }
+    if(p.type === 'intake' && clear) freeIntakes++;
+    if(p.type === 'fan' && clear) freeFans++;
+  }
+
+  m.center.set((min.x + max.x) / 2 * CELLXZ, (min.y + max.y) / 2 * CELLY, (min.z + max.z) / 2 * CELLXZ);
+  m.half.set(((max.x - min.x) / 2 + .5) * CELLXZ, ((max.y - min.y) / 2 + .5) * CELLY, ((max.z - min.z) / 2 + .5) * CELLXZ);
   m.radius = Math.hypot(m.half.x, m.half.z);
   m.mass = Math.max(1, mass);
   const ext = (m.half.x + m.half.y + m.half.z) / 3 * 2;
@@ -113,8 +139,7 @@ export function refresh(m){
   m.tanks = tanks; m.batts = batts; m.wings = wings; m.freeIntakes = freeIntakes;
   m.frontal = frontCells.size;
   // front-half wheels steer
-  const midZ = (min.z + max.z) / 2;
-  for(const w of m.wheels) w.steer = w.z > midZ + 0.01;
+  for(const w of m.wheels) w.steer = w.lz > m.center.z + 0.01;
 }
 
 /* effective power right now (also drains tanks/batteries) */
@@ -166,7 +191,7 @@ export function stepMachine(m, world, dt, onImpact){
   let grounded = 0;
   const wingGrip = 1 + Math.min(1.2, m.wings * 0.10 * m.vel.length() * 0.06);
   for(const w of m.wheels){
-    _wp.set(w.x * CELL, w.y * CELL, w.z * CELL).sub(m.center).applyQuaternion(m.quat).add(m.pos);
+    _wp.set(w.lx, w.ly, w.lz).sub(m.center).applyQuaternion(m.quat).add(m.pos);
     const gy = world.h(_wp.x, _wp.z);
     const compress = (TUNE.wheelRadius + TUNE.susLen) - (_wp.y - gy);
     if(compress <= 0){ w.spin *= 0.98; continue; }
@@ -299,12 +324,15 @@ export function shearParts(m, impulse, atWorld){
     const [x, y, z] = k.split(',').map(Number);
     const def = PARTS[p.type];
     if(impulse * TUNE.shearScale < def.shear * 2) continue;
-    // exterior only: at least one empty neighbor
+    // exterior only: some covered cell has an unoccupied neighbor
     let exposed = false;
-    for(const d of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])
-      if(!m.parts.has(key(x + d[0], y + d[1], z + d[2]))){ exposed = true; break; }
+    outer:
+    for(const [cx, cy, cz] of cellsOf(x, y, z, p.type))
+      for(const d of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])
+        if(!m.occ.has(key(cx + d[0], cy + d[1], cz + d[2]))){ exposed = true; break outer; }
     if(!exposed) continue;
-    const dist = Math.hypot(x * CELL - local.x, y * CELL - local.y, z * CELL - local.z);
+    const c = localCenterOf(x, y, z, p.type);
+    const dist = Math.hypot(c.x - local.x, c.y - local.y, c.z - local.z);
     cands.push({ k, p, dist, thresh: def.shear });
   }
   cands.sort((a, b) => a.dist - b.dist);
@@ -319,9 +347,12 @@ export function shearParts(m, impulse, atWorld){
   return out;   // [{k, p:{type,rot}}]
 }
 
-/* world position of a machine grid cell */
-export function cellWorld(m, x, y, z, out){
-  return (out || new THREE.Vector3()).set(x * CELL, y * CELL, z * CELL).sub(m.center).applyQuaternion(m.quat).add(m.pos);
+/* world position of a part (by its anchor key) */
+export function cellWorld(m, k, out){
+  const p = m.parts.get(k);
+  const [x, y, z] = k.split(',').map(Number);
+  const c = p ? localCenterOf(x, y, z, p.type) : new THREE.Vector3(x * CELLXZ, y * CELLY, z * CELLXZ);
+  return (out || new THREE.Vector3()).copy(c).sub(m.center).applyQuaternion(m.quat).add(m.pos);
 }
 
 /* ---- visuals ------------------------------------------------------------- */
@@ -331,7 +362,7 @@ export function rebuildMesh(m){
   for(const [k, p] of m.parts){
     const [x, y, z] = k.split(',').map(Number);
     const mesh = buildPartMesh(p.type, p.rot);
-    mesh.position.set(x * CELL, y * CELL, z * CELL).sub(m.center);
+    mesh.position.copy(localCenterOf(x, y, z, p.type)).sub(m.center);
     mesh.userData.cellKey = k;
     m.group.add(mesh);
   }

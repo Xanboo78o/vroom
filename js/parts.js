@@ -1,12 +1,17 @@
 /* =============================================================================
    parts.js — the Lego catalog.
-   Every part: flat fill + edges in a darker shade of the same fill (the style).
-   Geometry is code-built at the origin, facing local +Z, inside one CELL.
+   Grid: x/z cells are CELLXZ wide (fine grid), y layers are CELLY tall.
+   Every part covers a FOOTPRINT of cells (fp: [w,d]) — frames come in
+   1x1 / 2x2 / 3x3, everything else is 2x2. That's how you shape an F1 nose,
+   a rally hatch, or a boxy Ford.
+   Flat fill + edges in a darker shade of the same fill (the style).
    ============================================================================= */
 import * as THREE from 'three';
 import { artTex } from './art.js';
 
-export const CELL = 0.6;                 // world units per grid cell
+export const CELLXZ = 0.3;               // fine grid step in x/z
+export const CELLY = 0.6;                // one build layer tall
+const C = 0.6;                           // geometry unit (a 2x2 part is C wide)
 
 // darker shade of a hex color (the no-black-outline rule)
 export function shade(hex, f = 0.78){
@@ -19,6 +24,7 @@ export function mat(hex){
   if(!MATS.has(hex)) MATS.set(hex, new THREE.MeshLambertMaterial({ color: hex }));
   return MATS.get(hex);
 }
+const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 const LINE_MATS = new Map();
 function lineMat(hex){
   if(!LINE_MATS.has(hex)) LINE_MATS.set(hex, new THREE.LineBasicMaterial({ color: hex }));
@@ -41,19 +47,26 @@ export function vcyl(r, len, hex, seg = 12, edgeF = 0.72){
   return g;
 }
 
-const C = CELL;
-
 /* Part defs.
-   mass    — grams-ish, only lightly used (he said: shape+mechanisms, not weight yet)
-   facing  — part cares about its yaw rotation (intake/fan/wing need clear air)
+   fp      — footprint in grid cells [w, d]; every part is 1 layer tall
+   mass    — light influence only (shape+mechanisms, not weight yet)
+   facing  — part cares about its yaw rotation (needs clear air)
    shear   — impulse needed to knock it off (wheels pop easiest)                */
 export const PARTS = {
+  frame1: {
+    label: '1×1', key: '1', fp: [1, 1], mass: 0.3, color: 0xaab4c0, shear: 26,
+    build(){ return vbox(C * .5, C, C * .5, 0xaab4c0); }
+  },
   frame: {
-    label: 'FRAME', key: '1', mass: 1.0, color: 0xaab4c0, shear: 30,
+    label: '2×2', key: '2', fp: [2, 2], mass: 1.0, color: 0xaab4c0, shear: 30,
     build(){ return vbox(C, C, C, 0xaab4c0); }
   },
+  frame3: {
+    label: '3×3', key: '3', fp: [3, 3], mass: 2.2, color: 0xaab4c0, shear: 36,
+    build(){ return vbox(C * 1.5, C, C * 1.5, 0xaab4c0); }
+  },
   seat: {
-    label: 'SEAT', key: '2', mass: 0.8, color: 0xe8574f, shear: 34,
+    label: 'SEAT', key: '4', fp: [2, 2], mass: 0.8, color: 0xe8574f, shear: 34,
     build(){
       const g = new THREE.Group();
       const base = vbox(C * .9, C * .35, C * .9, 0xe8574f); base.position.y = -C * .28; g.add(base);
@@ -62,7 +75,7 @@ export const PARTS = {
     }
   },
   wheel: {
-    label: 'WHEEL', key: '3', mass: 0.9, color: 0x4a4f57, shear: 16,   // pops off easiest
+    label: 'WHEEL', key: '5', fp: [2, 2], mass: 0.9, color: 0x4a4f57, shear: 16,   // pops off easiest
     build(){
       const g = new THREE.Group();
       const tire = vcyl(C * .48, C * .45, 0x4a4f57, 14); tire.rotation.z = Math.PI / 2; g.add(tire);
@@ -71,7 +84,7 @@ export const PARTS = {
     }
   },
   engine: {
-    label: 'ENGINE', key: '4', mass: 1.6, color: 0xe69a3c, shear: 40,
+    label: 'ENGINE', key: '6', fp: [2, 2], mass: 1.6, color: 0xe69a3c, shear: 40,
     build(){
       const g = new THREE.Group();
       g.add(vbox(C * .92, C * .7, C * .92, 0xe69a3c));
@@ -83,7 +96,7 @@ export const PARTS = {
     }
   },
   tank: {
-    label: 'FUEL TANK', key: '5', mass: 1.2, color: 0xb9c94e, shear: 34,
+    label: 'FUEL', key: '7', fp: [2, 2], mass: 1.2, color: 0xb9c94e, shear: 34,
     build(){
       const g = new THREE.Group();
       const t = vcyl(C * .42, C * .86, 0xb9c94e, 12); t.rotation.x = Math.PI / 2; g.add(t);
@@ -92,7 +105,7 @@ export const PARTS = {
     }
   },
   intake: {
-    label: 'INTAKE', key: '6', mass: 0.6, color: 0x5aa7e0, shear: 26, facing: true,
+    label: 'INTAKE', key: '8', fp: [2, 2], mass: 0.6, color: 0x5aa7e0, shear: 26, facing: true,
     build(){
       const g = new THREE.Group();
       const body = vbox(C * .8, C * .8, C * .55, 0x5aa7e0); body.position.z = -C * .1; g.add(body);
@@ -101,7 +114,7 @@ export const PARTS = {
     }
   },
   battery: {
-    label: 'BATTERY', key: '7', mass: 1.3, color: 0x46c2a5, shear: 34,
+    label: 'BATT', key: '9', fp: [2, 2], mass: 1.3, color: 0x46c2a5, shear: 34,
     build(){
       const g = new THREE.Group();
       g.add(vbox(C * .85, C * .75, C * .85, 0x46c2a5));
@@ -110,7 +123,7 @@ export const PARTS = {
     }
   },
   motor: {
-    label: 'E-MOTOR', key: '8', mass: 1.1, color: 0x9b6fd6, shear: 36,
+    label: 'MOTOR', key: '0', fp: [2, 2], mass: 1.1, color: 0x9b6fd6, shear: 36,
     build(){
       const g = new THREE.Group();
       const b = vcyl(C * .38, C * .8, 0x9b6fd6, 12); b.rotation.z = Math.PI / 2; g.add(b);
@@ -119,14 +132,14 @@ export const PARTS = {
     }
   },
   fan: {
-    label: 'FAN', key: '9', mass: 0.7, color: 0x6fd6d0, shear: 24, facing: true,
+    label: 'FAN', key: '', fp: [2, 2], mass: 0.7, color: 0x6fd6d0, shear: 24, facing: true,
     build(){
       const g = new THREE.Group();
       const ring = vcyl(C * .44, C * .22, 0x6fd6d0, 14); ring.rotation.x = Math.PI / 2; g.add(ring);
       const blades = new THREE.Group();
       for(let i = 0; i < 4; i++){
         const bl = vbox(C * .1, C * .36, C * .06, 0x4db3ad);
-        bl.position.y = 0; bl.rotation.z = i * Math.PI / 2;
+        bl.rotation.z = i * Math.PI / 2;
         bl.translateY(C * .19);
         blades.add(bl);
       }
@@ -136,7 +149,7 @@ export const PARTS = {
     }
   },
   wing: {
-    label: 'WING', key: '0', mass: 0.5, color: 0xeef1f4, shear: 22, facing: true,
+    label: 'WING', key: '', fp: [2, 2], mass: 0.5, color: 0xeef1f4, shear: 22, facing: true,
     build(){
       const g = new THREE.Group();
       const plane = vbox(C * 1.0, C * .12, C * .5, 0xeef1f4); plane.position.y = C * .2; g.add(plane);
@@ -147,7 +160,16 @@ export const PARTS = {
   },
 };
 
-export const PART_ORDER = ['frame', 'seat', 'wheel', 'engine', 'tank', 'intake', 'battery', 'motor', 'fan', 'wing'];
+export const PART_ORDER = ['frame1', 'frame', 'frame3', 'seat', 'wheel', 'engine',
+  'tank', 'intake', 'battery', 'motor', 'fan', 'wing'];
+
+export function fpOf(type){ return PARTS[type].fp || [2, 2]; }
+
+// machine-local center (pre-center-offset) of a part anchored at cell (x,y,z)
+export function localCenterOf(x, y, z, type){
+  const [w, d] = fpOf(type);
+  return new THREE.Vector3((x + (w - 1) / 2) * CELLXZ, y * CELLY, (z + (d - 1) / 2) * CELLXZ);
+}
 
 // build a display mesh for one placed part (rot = quarter-turns around Y)
 export function buildPartMesh(type, rot = 0){
@@ -156,9 +178,10 @@ export function buildPartMesh(type, rot = 0){
   // Adam's SVG as the top face (the game is viewed from above)
   const tex = artTex(type);
   if(tex){
+    const [fw, fd] = fpOf(type);
     const box = new THREE.Box3().setFromObject(g);
     const quad = new THREE.Mesh(
-      new THREE.PlaneGeometry(CELL * 0.985, CELL * 0.985),
+      new THREE.PlaneGeometry(fw * CELLXZ * 0.985, fd * CELLXZ * 0.985),
       new THREE.MeshBasicMaterial({ map: tex, transparent: true })
     );
     quad.rotation.set(-Math.PI / 2, 0, Math.PI);   // svg "up" = machine forward
@@ -168,10 +191,16 @@ export function buildPartMesh(type, rot = 0){
   g.rotation.y = rot * Math.PI / 2;
   const wrap = new THREE.Group();
   wrap.add(g);
+  // invisible full-footprint hitbox: hovering ANYWHERE over a part's cells hits that part
+  // (meshes are smaller than their footprint — without this the ray falls through to the layer below)
+  const [fw, fd] = fpOf(type);
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(fw * CELLXZ, CELLY, fd * CELLXZ), HIT_MAT);
+  hit.name = 'hit';
+  wrap.add(hit);
   return wrap;
 }
 
-// facing direction of a rotated part, in machine-local grid steps
+// facing direction of a rotated part, in grid steps
 export function facingDir(rot){
   return [[0, 0, 1], [1, 0, 0], [0, 0, -1], [-1, 0, 0]][rot & 3];
 }

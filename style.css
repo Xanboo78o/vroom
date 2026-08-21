@@ -62,6 +62,7 @@ button.big:active { transform: translateY(3px); border-bottom-width: 2px; }
 }
 #board div i { float: right; font-style: normal; color: #3f83b8; margin-left: 10px; }
 
+body:has(#tray:not(.hide)) #prompt { bottom: 104px; }
 #prompt {
   position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%);
   font-size: 14px; font-weight: 700; color: #fffdf6; text-shadow: 0 1px 0 #00000030;
@@ -75,13 +76,39 @@ button.big:active { transform: translateY(3px); border-bottom-width: 2px; }
 }
 #toast.show { opacity: 1; transform: translateX(-50%) scale(1); }
 
-/* ---------- build tray ---------- */
+/* ---------- the cursor ---------- */
+body.playing, body.playing * { cursor: none !important; }
+#cur {
+  position: fixed; left: -100px; top: -100px; width: 32px; height: 32px;
+  pointer-events: none; display: none; z-index: 99;
+  transform: translate(-50%, -50%);
+}
+#cur svg { display: block; width: 32px; height: 32px; image-rendering: pixelated; }
+body.playing #cur { display: block; }
+#cur.press { transform: translate(-50%, -50%) scale(.8); }
+
+/* ---------- build tray: the catalog. 90° angles, 10px outline, no smoothing ---------- */
 #tray { position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: center; padding: 10px; pointer-events: none; }
 #trayBtns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; pointer-events: auto; }
 .tbtn {
-  padding: 8px 10px; font-size: 12px; font-weight: 800; cursor: pointer;
-  background: #f6f1e3; color: #55503f; border: 3px solid #d8d2bf; border-radius: 10px;
-  border-left: 10px solid var(--pc, #aab4c0);
+  position: relative; width: 74px; height: 74px; padding: 0; overflow: hidden;
+  background: #f6f1e3; border: 10px solid #d8d2bf; border-radius: 0;
+  cursor: pointer; display: block;
 }
-.tbtn b { color: #3f83b8; margin-right: 3px; }
-.tbtn.sel { background: #fffdf6; border-color: #5aa7e0; transform: translateY(-3px); }
+.tbtn img {
+  display: block; width: 100%; height: 100%; object-fit: contain;
+  image-rendering: pixelated; image-rendering: crisp-edges; pointer-events: none;
+}
+.tbtn i {
+  position: absolute; left: 0; right: 0; bottom: 0; font-style: normal;
+  font-size: 9px; font-weight: 800; letter-spacing: 1px; line-height: 12px;
+  background: #d8d2bf; color: #55503f; text-align: center;
+}
+.tbtn b {
+  position: absolute; left: 0; top: 0; font-size: 10px; font-weight: 800; line-height: 12px;
+  padding: 0 4px; background: #3f83b8; color: #fffdf6;
+}
+.tbtn:hover { border-color: #c4bda6; }
+.tbtn:hover i { background: #c4bda6; }
+.tbtn.sel { border-color: #e8574f; background: #fffdf6; }
+.tbtn.sel i { background: #e8574f; color: #fffdf6; }
