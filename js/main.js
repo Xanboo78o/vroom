@@ -6,8 +6,8 @@
 import { makeRing } from './ring.js';
 import { PARTS, PART_ORDER, CELL, fpOf, localCenterOf, drawPart, partIcon, clearIcons, keyOf, cellsOf, parseKey } from './parts.js';
 import { makeMachine, starterLayout, serializeParts, loadParts, refresh, anchorFix, stepMachine, bumpMachines,
-         shearParts, cellWorld, worldToLocal, localToWorld, netSync, drawMachine, topAt, TUNE } from './machine.js';
-import { GARAGE, inGarage, padOf, stepFlow, drawFlow, drawReadout } from './garage.js';
+         shearParts, cellWorld, worldToLocal, localToWorld, netSync, drawMachine, topAt, removePartKeys, TUNE } from './machine.js';
+import { GARAGE, inGarage, padOf, stepFlow, drawFlow, drawReadout, setWind, windBreakKey } from './garage.js';
 import { buildWorld, WORLD, inPit, drawWorld, drawCanopy, surfaceAt } from './world.js';
 import { SURF } from './tracks.js';
 import { makeGuy, stepGuy, syncRemoteGuy, eject, drawGuy, GUY_SIZE } from './guy.js';
@@ -213,6 +213,7 @@ function wireInput(){
       probeLogo(); reloadTiles();
     }
     if(G.mode === 'build'){
+      if(e.code === 'BracketLeft' || e.code === 'BracketRight') setWind(e.code === 'BracketRight' ? 10 : -10);   // the wind
       if(e.code === 'Escape' && G.ring && G.ring.isOpen) G.ring.close();
       if(e.code === 'KeyR') G.buildRot = (G.buildRot + 1) & 3;
       if(e.code === 'KeyX' && !(G.ring && G.ring.isOpen)) removePart();
@@ -518,6 +519,23 @@ function drawBuildOverlay(ctx, zoom){
   ctx.restore();
 }
 
+/* too much wind for a part → it rips off and blows down the tunnel (one part every 0.35 s) */
+function windStress(m, dt){
+  G.windT = (G.windT || 0) - dt; if(G.windT > 0) return;
+  const k = windBreakKey(m); if(!k || m.parts.size <= 1) return;
+  G.windT = 0.35;
+  const c0 = { ...m.center };
+  const gone = removePartKeys(m, [k]); anchorFix(m, c0);
+  for(const g of gone){
+    const wp = cellWorld(m, g.k); const [, , l] = parseKey(g.k);
+    const db = { did: myPid() + ':' + (G.debrisN++), type: g.p.type, rot: g.p.rot, p: [wp.x, wp.y], z: 0.3 + l * 0.3,
+      v: [rnd(2), 4 + GARAGE.wind * 0.12], vz: 3 + rnd(2), ang: m.a, home: { mid: m.id, k: g.k } };
+    spawnDebris(db); burst(wp.x, wp.y, 6, PARTS[g.p.type].color, 3, 0.08);
+    if(!G.solo) NET.send('shear', { mid: m.id, cells: [[g.k]], debris: [db] });
+  }
+  toast('WIND ripped off ' + gone.map(g => PARTS[g.p.type].label).join(', '));
+}
+
 /* ---- laps: whichever track's start line you cross owns the timer ------------- */
 function stepLap(m){
   const L = G.lap;
@@ -691,7 +709,7 @@ function loop(t){
       if(drv.fuel > before) pitFlash(t);
     }
   }
-  if(G.mode === 'build'){ buildHover(); const bm = G.machines.get(G.buildTarget); if(bm) stepFlow(dt, bm); }
+  if(G.mode === 'build'){ buildHover(); const bm = G.machines.get(G.buildTarget); if(bm){ stepFlow(dt, bm); windStress(bm, dt); } }
 
   camera(dt, drv);
   render(ts);
@@ -772,7 +790,7 @@ function hud(drv, t){
   } else {
     sp.style.display = 'none'; $('#bars').style.display = 'none'; lapEl.style.display = 'none';
     let p = '';
-    if(G.mode === 'build') p = 'right-click: catalog · click add (middle = stack up, edge = sideways) · X remove · R rotate · Ctrl+G recenter · B done';
+    if(G.mode === 'build') p = 'right-click: catalog · click add (middle = stack up, edge = sideways) · X remove · R rotate · [ ] wind · Ctrl+G recenter · B done';
     else {
       let nearSeat = false, nearDb = false;
       for(const m of G.machines.values()){ if(!m.seatKey || m.driver) continue; const s = cellWorld(m, m.seatKey); if(Math.hypot(s.x - G.me.x, s.y - G.me.y) < 2.6){ nearSeat = true; break; } }

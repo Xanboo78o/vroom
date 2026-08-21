@@ -24,7 +24,10 @@ export const GARAGE = {
   puddle: { x: -388, y: 447, r: 3.2 },
   exit: { x: -330, y: 452 },
   flow: [], spawnT: 0,
+  wind: 60,            // mph — [ ] changes it; past a part's break point the air rips it off
 };
+export const AIR_COLORS = [0xffffff, 0x9fdcf7, 0xffcf3d, 0xf98fb8, 0x2fcfa1, 0x9b6fe0, 0xff6f2e];
+export function setWind(d){ GARAGE.wind = Math.max(0, Math.min(200, GARAGE.wind + d)); return GARAGE.wind; }
 for(let i = 0; i < 4; i++) GARAGE.pads.push({ x: -351 + i * 14, y: 420, w: 10, d: 16 });
 const LOOP_PTS = [[-395, 420], [-388, 390], [-365, 372], [-330, 366], [-295, 372], [-272, 390], [-265, 420], [-272, 450], [-295, 468], [-330, 474], [-365, 468], [-388, 450]];
 const SEGS = [[0, 0.33, 'asphalt'], [0.33, 0.58, 'gravel'], [0.58, 0.83, 'sand'], [0.83, 1, 'grass']];
@@ -99,30 +102,35 @@ export function drawGarage(ctx, view, zoom, t){
   });
 }
 
-/* ---- the air: particles that stream over the machine on its pad ------------------- */
+/* ---- the air: particles that stream over the machine on its pad, one LAYER each ----
+   Layer-1 air (l = 0) is half of it; the rest is shared by the layers above — so a block
+   only blocks the air at its own height, and air at layer 3 flows over a 2-high stack. */
 export function stepFlow(dt, m){
   const pad = padOf(m); const F = GARAGE.flow;
-  if(!pad){ F.length = 0; return; }
+  if(!pad || GARAGE.wind <= 0){ F.length = 0; return; }
+  const W = GARAGE.wind, vy0 = 3 + W * 0.09;
   GARAGE.spawnT -= dt;
-  while(GARAGE.spawnT <= 0 && F.length < 90){ GARAGE.spawnT += 0.03; F.push({ x: pad.x - pad.w / 2 + 0.6 + Math.random() * (pad.w - 1.2), y: pad.y - pad.d / 2 + 1.8, vx: 0, vy: 7 + Math.random() * 2, trail: [], life: 1, suck: false }); }
+  const maxLayer = m.layers;                         // one layer ABOVE the tallest stack gets air too
+  while(GARAGE.spawnT <= 0 && F.length < 110){
+    GARAGE.spawnT += 0.025;
+    const l = Math.random() < 0.5 || maxLayer < 1 ? 0 : 1 + Math.floor(Math.random() * maxLayer);
+    F.push({ x: pad.x - pad.w / 2 + 0.6 + Math.random() * (pad.w - 1.2), y: pad.y - pad.d / 2 + 1.8, vx: 0, vy: vy0 * (0.9 + Math.random() * 0.2), trail: [], life: 1, suck: false, l });
+  }
   const L = {};
   for(let i = F.length - 1; i >= 0; i--){
     const p = F[i];
     if(p.suck){ p.life -= dt * 4; if(p.life <= 0) F.splice(i, 1); continue; }
     p.trail.push(p.x, p.y); if(p.trail.length > 16) p.trail.splice(0, 2);
-    // look ahead into the machine's grid
     worldToLocal(m, p.x, p.y + 0.35, L);
     const ci = Math.round(L.x / CELL), cj = Math.round(L.y / CELL);
     const top = topAt(m, ci, cj);
-    if(top >= 0){
-      const ak = m.occ.get(keyOf(ci, cj, top)); const part = m.parts.get(ak);
-      const breathes = part && (part.type === 'intake' || part.type === 'fan') && part.rot === 0 && m.freeIntakes + m.freeFans > 0;
+    if(top >= p.l){                                   // something this tall is in the way
+      const ak = m.occ.get(keyOf(ci, cj, p.l)); const part = ak && m.parts.get(ak);
+      const breathes = part && (part.type === 'intake' || part.type === 'fan') && part.rot === 0;
       if(breathes && Math.abs(L.y / CELL - (parseKey(ak)[1] - 0.5)) < 1.2){ p.suck = true; p.vx = p.vy = 0; continue; }
-      // go around: away from the centre of mass, faster the taller the stack
       const side = L.x < m.com.x ? -1 : 1;
-      p.vx += side * (26 + top * 10) * dt; p.vy = Math.max(2.5, p.vy - 20 * dt);
-    } else { p.vx *= Math.pow(0.05, dt); p.vy += (8 - p.vy) * Math.min(1, dt * 3); }
-    // wings push the air down (drawn as a little dip): nothing physical here, just vibes
+      p.vx += side * (22 + W * 0.25 + (top - p.l) * 8) * dt; p.vy = Math.max(2.5, p.vy - (14 + W * 0.2) * dt);
+    } else { p.vx *= Math.pow(0.05, dt); p.vy += (vy0 - p.vy) * Math.min(1, dt * 3); }
     p.x += p.vx * dt; p.y += p.vy * dt;
     if(p.y > pad.y + pad.d / 2 - 1.2 || p.x < pad.x - pad.w / 2 + 0.3 || p.x > pad.x + pad.w / 2 - 0.3) F.splice(i, 1);
   }
@@ -131,18 +139,53 @@ export function drawFlow(ctx){
   ctx.lineWidth = 0.07; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   for(const p of GARAGE.flow){
     if(p.trail.length < 4) continue;
-    ctx.strokeStyle = rgba(p.suck ? PAL.intake : 0xffffff, p.suck ? 0.9 * p.life : 0.55);
+    const col = AIR_COLORS[p.l % AIR_COLORS.length];
+    ctx.strokeStyle = rgba(p.suck ? PAL.intake : col, p.suck ? 0.9 * p.life : (p.l === 0 ? 0.55 : 0.75));
     ctx.beginPath(); ctx.moveTo(p.trail[0], p.trail[1]); for(let k = 2; k < p.trail.length; k += 2) ctx.lineTo(p.trail[k], p.trail[k + 1]); ctx.lineTo(p.x, p.y); ctx.stroke();
     if(p.suck){ ctx.beginPath(); ctx.arc(p.x, p.y, 0.25 * (1 - p.life) + 0.08, 0, 7); ctx.fillStyle = rgba(PAL.intake, 0.6 * p.life); ctx.fill(); }
   }
 }
+/* wind load per part: its cells with open air upwind (same layer), times wind² — past the
+   part's shear threshold it rips off. Returns the weakest offender (one at a time = drama). */
+export function windBreakKey(m){
+  const W = GARAGE.wind; if(W <= 0) return null;
+  const q = (W / 60) * (W / 60) * 2.9;
+  let worst = null, worstK = 0;
+  for(const [k, p] of m.parts){
+    const [i, j, l] = parseKey(k); const def = PARTS[p.type];
+    let exposed = 0;
+    for(const [ci, cj] of cellsOfPart(i, j, p.type, l)) if(topAt(m, ci, cj - 1) < l) exposed++;
+    if(!exposed) continue;
+    const F = q * exposed, over = F / def.shear;
+    if(over > 1 && over > worstK){ worstK = over; worst = k; }
+  }
+  return worst;
+}
+function* cellsOfPart(i, j, type, l){ const [w, d] = PARTS[type].fp || [2, 2]; for(let a = 0; a < w; a++) for(let b = 0; b < d; b++) yield [i + a, j + b, l]; }
+/* wind at which THIS build's weakest exposed part lets go (for the readout) */
+export function breakPoint(m){
+  let best = 1e9;
+  for(const [k, p] of m.parts){
+    const [i, j, l] = parseKey(k); const def = PARTS[p.type];
+    let exposed = 0; for(const [ci, cj] of cellsOfPart(i, j, p.type, l)) if(topAt(m, ci, cj - 1) < l) exposed++;
+    if(!exposed) continue;
+    const w = 60 * Math.sqrt(def.shear / (2.9 * exposed));
+    if(w < best) best = w;
+  }
+  return best;
+}
+
 /* the readout painted on the pad's footer */
 export function drawReadout(ctx, m){
   const pad = padOf(m); if(!pad) return;
+  const bp = breakPoint(m);
   const lines = [
-    'MASS ' + m.mass.toFixed(1) + '  ·  LAYERS ' + m.layers + (m.highWheels ? '  ·  ' + m.highWheels + ' wheel' + (m.highWheels > 1 ? 's' : '') + ' off the ground!' : ''),
-    'DRAG ' + m.cd.toFixed(3) + '  ·  X-SECTION ' + m.frontal + ' cells' + (m.wings ? '  ·  WINGS ' + m.wings : ''),
-    'WEIGHT F/R ' + Math.round(m.balanceF * 100) + ' / ' + Math.round((1 - m.balanceF) * 100) + (m.freeIntakes < m.engines ? '  ·  an engine can\'t breathe' : ''),
+    ['WIND ' + Math.round(GARAGE.wind) + ' mph  ·  [ ] to change  ·  breaks at ' + (bp < 1e8 ? Math.round(bp) + ' mph' : '—'), GARAGE.wind >= bp ? PAL.redDark : PAL.ink],
+    ['MASS ' + m.mass.toFixed(1) + '  ·  LAYERS ' + m.layers + (m.highWheels ? '  ·  ' + m.highWheels + ' wheel' + (m.highWheels > 1 ? 's' : '') + ' off the ground!' : ''), PAL.ink],
+    ['DRAG ' + m.cd.toFixed(3) + '  ·  X-SECTION ' + m.frontal + ' cells' + (m.wings ? '  ·  WINGS ' + m.wings : ''), PAL.ink],
+    ['WEIGHT F/R ' + Math.round(m.balanceF * 100) + ' / ' + Math.round((1 - m.balanceF) * 100) + (m.freeIntakes < m.engines ? '  ·  an engine can\'t breathe' : ''), m.freeIntakes < m.engines ? PAL.redDark : PAL.ink],
   ];
-  lines.forEach((tx, i) => label(ctx, tx, pad.x, pad.y + 3.4 + i * 0.95, 0.56, PAL.paper, { bg: i === 2 && m.freeIntakes < m.engines ? PAL.redDark : PAL.ink }));
+  lines.forEach(([tx, bg], i) => label(ctx, tx, pad.x, pad.y + 3.0 + i * 0.92, 0.54, PAL.paper, { bg }));
+  // air legend: which colour flows at which layer
+  for(let l = 0; l <= m.layers; l++){ const x0 = pad.x - pad.w / 2 + 0.9, y0 = pad.y - pad.d / 2 + 2.4 + l * 0.55; ctx.strokeStyle = hex(AIR_COLORS[l % AIR_COLORS.length]); ctx.lineWidth = 0.1; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + 1.1, y0); ctx.stroke(); label(ctx, 'L' + (l + 1), x0 + 1.8, y0, 0.4, PAL.paper); }
 }

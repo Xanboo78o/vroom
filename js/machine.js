@@ -340,6 +340,13 @@ export function shearParts(m, impulse, ax, ay){
   if(out.length){ refresh(m); dropFloaters(m, out); }
   return out;   // [{k, p:{type,rot}}]
 }
+/* remove specific parts (by anchor key) + anything left floating; returns everything that came off */
+export function removePartKeys(m, keys){
+  const out = [];
+  for(const k of keys){ const p = m.parts.get(k); if(p){ m.parts.delete(k); out.push({ k, p }); } }
+  if(out.length){ refresh(m); dropFloaters(m, out); }
+  return out;
+}
 function dropFloaters(m, out){
   let changed = true;
   while(changed){
