@@ -9,7 +9,7 @@
    stands in. Never a crash.
    ============================================================================= */
 export const ART = {
-  parts: ['frame1', 'frame', 'frame3', 'seat', 'wheel', 'engine', 'tank', 'intake', 'battery', 'motor', 'fan', 'wing'],
+  parts: ['frame1', 'frame', 'frame3', 'seat', 'wheel', 'engine', 'tank', 'intake', 'battery', 'motor', 'fan', 'wing', 'nose', 'wedge', 'curve'],
   critters: ['tomathy', 'jimothy', 'dillon', 'corval', 'kris'],
   props: ['cart', 'plowval', 'cone', 'bush', 'tree', 'statue', 'tire', 'flower'],
 };

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- NOSE: a point. Air splits around it. Overwrite me, Adam! -->
+  <polygon points="64,6 122,122 6,122" fill="#dde6ee" stroke="#a9b7c4" stroke-width="4" stroke-linejoin="round"/>
+  <polygon points="64,30 104,114 24,114" fill="#eef3f7"/>
+  <path d="M64 36 V112" stroke="#c3cfda" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="40" cy="104" r="4" fill="#7c848e"/><circle cx="88" cy="104" r="4" fill="#7c848e"/>
+</svg>

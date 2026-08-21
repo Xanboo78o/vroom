@@ -8,7 +8,7 @@ down) and things that face somewhere face **UP** on your canvas.
 ## Slots the game looks for
 | file | what | size hint |
 |---|---|---|
-| `assets/parts/frame.svg` `seat.svg` `wheel.svg` `engine.svg` `tank.svg` `intake.svg` `battery.svg` `motor.svg` `fan.svg` `wing.svg` | the whole part (it IS the tile now — no 3D underneath) | square, e.g. 128×128 |
+| `assets/parts/frame.svg` `seat.svg` `wheel.svg` `engine.svg` `tank.svg` `intake.svg` `battery.svg` `motor.svg` `fan.svg` `wing.svg` `nose.svg` `wedge.svg` `curve.svg` | the whole part (it IS the tile now — no 3D underneath) | square, e.g. 128×128 |
 | `assets/parts/frame1.svg` / `frame3.svg` | optional: the 1×1 / 3×3 frames (else frame.svg is reused) | square |
 | `assets/guy.svg` | the little guy from above (head, cap, shoulders) — everyone shares it; your colour shows as a ring at your feet | 128×128 |
 | `assets/critters/tomathy.svg` `jimothy.svg` `dillon.svg` `corval.svg` `kris.svg` | Kris's Corner cast | any (tall is fine) |

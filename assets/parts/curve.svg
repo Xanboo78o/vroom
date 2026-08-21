@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- CURVE: a rounded quarter fairing. Fills bottom-left, the curve faces up-right (R rotates it). Overwrite me, Adam! -->
+  <path d="M6 6 A116 116 0 0 1 122 122 L6 122 Z" fill="#dde6ee" stroke="#a9b7c4" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M22 40 A82 82 0 0 1 88 118 L22 118 Z" fill="#eef3f7"/>
+  <path d="M30 30 A92 92 0 0 1 104 104" stroke="#c3cfda" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <circle cx="24" cy="104" r="4" fill="#7c848e"/>
+</svg>

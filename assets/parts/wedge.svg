@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- WEDGE: a corner slant. Fills bottom-left, the slope faces up-right (R rotates it to any corner). Overwrite me, Adam! -->
+  <polygon points="6,6 122,122 6,122" fill="#dde6ee" stroke="#a9b7c4" stroke-width="4" stroke-linejoin="round"/>
+  <polygon points="22,44 96,118 22,118" fill="#eef3f7"/>
+  <path d="M30 30 L104 104" stroke="#c3cfda" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="24" cy="104" r="4" fill="#7c848e"/>
+</svg>

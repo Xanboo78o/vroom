@@ -74,6 +74,10 @@ const DRAW = {
     ctx.restore();
     disc(ctx, 0, 0, s * .08, PAL.fanDark, 0);
   },
+  // aero shapes: forward = up. wedge/curve fill the bottom-left with the slant/curve facing up-right (rot 0 = front-right corner; R rotates)
+  nose(ctx, s){ ctx.beginPath(); ctx.moveTo(0, -s / 2 + 0.02); ctx.lineTo(s / 2 - 0.02, s / 2 - 0.02); ctx.lineTo(-s / 2 + 0.02, s / 2 - 0.02); ctx.closePath(); blob(ctx, PAL.aero, LW); ctx.beginPath(); ctx.moveTo(0, -s * .3); ctx.lineTo(0, s * .4); ctx.lineWidth = LW; ctx.strokeStyle = hex(tint(PAL.aero, .5)); ctx.stroke(); },
+  wedge(ctx, s){ ctx.beginPath(); ctx.moveTo(-s / 2 + 0.02, -s / 2 + 0.02); ctx.lineTo(s / 2 - 0.02, s / 2 - 0.02); ctx.lineTo(-s / 2 + 0.02, s / 2 - 0.02); ctx.closePath(); blob(ctx, PAL.aero, LW); ctx.beginPath(); ctx.moveTo(-s * .3, -s * .1); ctx.lineTo(s * .1, s * .3); ctx.lineWidth = LW; ctx.strokeStyle = hex(tint(PAL.aero, .5)); ctx.stroke(); },
+  curve(ctx, s){ ctx.beginPath(); ctx.moveTo(-s / 2 + 0.02, -s / 2 + 0.02); ctx.arc(-s / 2 + 0.02, s / 2 - 0.02, s - 0.04, -Math.PI / 2, 0); ctx.lineTo(-s / 2 + 0.02, s / 2 - 0.02); ctx.closePath(); blob(ctx, PAL.aero, LW); ctx.beginPath(); ctx.arc(-s / 2, s / 2, s * 0.62, -Math.PI / 2, 0); ctx.lineWidth = LW; ctx.strokeStyle = hex(tint(PAL.aero, .5)); ctx.stroke(); },
   wing(ctx, s){
     for(const sx of [-1, 1]) box(ctx, sx * s * .3 - s * .05, -s * .4, s * .1, s * .6, s * .04, PAL.wingDark, 0);   // struts
     box(ctx, -s / 2, s * .05, s, s * .32, s * .12, PAL.wing, LW);                          // the plane (back)
@@ -100,8 +104,12 @@ export const PARTS = {
   motor:   { label: 'MOTOR',  key: '0', cat: 'electric', fp: [2, 2], mass: 1.1, color: PAL.motor,   shear: 36, art: 'motor',  draw: DRAW.motor },
   fan:     { label: 'FAN',    key: '',  cat: 'electric', fp: [2, 2], mass: 0.7, color: PAL.fan,     shear: 24, art: 'fan',    draw: DRAW.fan, facing: true },
   wing:    { label: 'WING',   key: '',  cat: 'aero',     fp: [2, 2], mass: 0.5, color: PAL.wing,    shear: 22, art: 'wing',   draw: DRAW.wing, facing: true },
+  // streamlining: a column whose FRONTMOST block is one of these counts 0.45 instead of 1 in the cross-section
+  nose:    { label: 'NOSE',   key: '',  cat: 'aero',     fp: [2, 2], mass: 0.6, color: PAL.aero,    shear: 28, art: 'nose',   draw: DRAW.nose, facing: true, aero: 'nose', noContour: true },
+  wedge:   { label: 'WEDGE',  key: '',  cat: 'aero',     fp: [2, 2], mass: 0.6, color: PAL.aero,    shear: 28, art: 'wedge',  draw: DRAW.wedge, facing: true, aero: 'wedge', noContour: true },
+  curve:   { label: 'CURVE',  key: '',  cat: 'aero',     fp: [2, 2], mass: 0.6, color: PAL.aero,    shear: 28, art: 'curve',  draw: DRAW.curve, facing: true, aero: 'curve', noContour: true },
 };
-export const PART_ORDER = ['frame1', 'frame', 'frame3', 'seat', 'wheel', 'engine', 'tank', 'intake', 'battery', 'motor', 'fan', 'wing'];
+export const PART_ORDER = ['frame1', 'frame', 'frame3', 'seat', 'wheel', 'engine', 'tank', 'intake', 'battery', 'motor', 'fan', 'wing', 'nose', 'wedge', 'curve'];
 
 export function fpOf(type){ return PARTS[type].fp || [2, 2]; }
 export function sizeOf(type){ const [w, d] = fpOf(type); return [w * CELL, d * CELL]; }
@@ -125,9 +133,9 @@ export function drawPart(ctx, type, rot = 0, zoom = 40, alpha = 1, spin = 0, ste
   const [w, d] = sizeOf(type);
   ctx.save();
   ctx.rotate(rot * Math.PI / 2 + steer);
-  // contour: every block reads as a block
-  rrect(ctx, -w / 2 + 0.01, -d / 2 + 0.01, w - 0.02, d - 0.02, 0.06);
-  ctx.lineWidth = 0.05; ctx.strokeStyle = hex(shade(def.color, .55)); if(alpha < 1) ctx.globalAlpha *= alpha; ctx.stroke(); if(alpha < 1) ctx.globalAlpha /= alpha;
+  // contour: every block reads as a block (aero shapes carry their own outline)
+  if(!def.noContour){ rrect(ctx, -w / 2 + 0.01, -d / 2 + 0.01, w - 0.02, d - 0.02, 0.06);
+    ctx.lineWidth = 0.05; ctx.strokeStyle = hex(shade(def.color, .55)); if(alpha < 1) ctx.globalAlpha *= alpha; ctx.stroke(); if(alpha < 1) ctx.globalAlpha /= alpha; }
   let key = 'parts/' + def.art;
   if(!hasArt(key) && def.alt) key = 'parts/' + def.alt;
   if(!art(ctx, key, w, d, zoom, alpha)){

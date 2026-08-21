@@ -128,8 +128,11 @@ export function stepFlow(dt, m){
       const ak = m.occ.get(keyOf(ci, cj, p.l)); const part = ak && m.parts.get(ak);
       const breathes = part && (part.type === 'intake' || part.type === 'fan') && part.rot === 0;
       if(breathes && Math.abs(L.y / CELL - (parseKey(ak)[1] - 0.5)) < 1.2){ p.suck = true; p.vx = p.vy = 0; continue; }
-      const side = L.x < m.com.x ? -1 : 1;
-      p.vx += side * (22 + W * 0.25 + (top - p.l) * 8) * dt; p.vy = Math.max(2.5, p.vy - (14 + W * 0.2) * dt);
+      const aero = part && PARTS[part.type].aero;
+      let side = L.x < m.com.x ? -1 : 1;
+      if(aero){ const [pi] = parseKey(ak); const cx = (pi + 0.5) * CELL;     // slide along the slope: wedge/curve rot 0 sheds right, rot 3 sheds left, nose splits at its point
+        side = aero === 'nose' ? (L.x < cx ? -1 : 1) : part.rot === 0 ? 1 : part.rot === 3 ? -1 : (L.x < cx ? -1 : 1); }
+      p.vx += side * (aero ? 34 + W * 0.3 : 22 + W * 0.25 + (top - p.l) * 8) * dt; p.vy = Math.max(2.5, p.vy - (aero ? 4 : 14 + W * 0.2) * dt);
     } else { p.vx *= Math.pow(0.05, dt); p.vy += (vy0 - p.vy) * Math.min(1, dt * 3); }
     p.x += p.vx * dt; p.y += p.vy * dt;
     if(p.y > pad.y + pad.d / 2 - 1.2 || p.x < pad.x - pad.w / 2 + 0.3 || p.x > pad.x + pad.w / 2 - 0.3) F.splice(i, 1);
@@ -156,7 +159,7 @@ export function windBreakKey(m){
     let exposed = 0;
     for(const [ci, cj] of cellsOfPart(i, j, p.type, l)) if(topAt(m, ci, cj - 1) < l) exposed++;
     if(!exposed) continue;
-    const F = q * exposed, over = F / def.shear;
+    const F = q * exposed * (def.aero ? 0.5 : 1), over = F / def.shear;
     if(over > 1 && over > worstK){ worstK = over; worst = k; }
   }
   return worst;
@@ -169,7 +172,7 @@ export function breakPoint(m){
     const [i, j, l] = parseKey(k); const def = PARTS[p.type];
     let exposed = 0; for(const [ci, cj] of cellsOfPart(i, j, p.type, l)) if(topAt(m, ci, cj - 1) < l) exposed++;
     if(!exposed) continue;
-    const w = 60 * Math.sqrt(def.shear / (2.9 * exposed));
+    const w = 60 * Math.sqrt(def.shear / (2.9 * exposed * (def.aero ? 0.5 : 1)));
     if(w < best) best = w;
   }
   return best;
@@ -182,7 +185,7 @@ export function drawReadout(ctx, m){
   const lines = [
     ['WIND ' + Math.round(GARAGE.wind) + ' mph  ·  [ ] to change  ·  breaks at ' + (bp < 1e8 ? Math.round(bp) + ' mph' : '—'), GARAGE.wind >= bp ? PAL.redDark : PAL.ink],
     ['MASS ' + m.mass.toFixed(1) + '  ·  LAYERS ' + m.layers + (m.highWheels ? '  ·  ' + m.highWheels + ' wheel' + (m.highWheels > 1 ? 's' : '') + ' off the ground!' : ''), PAL.ink],
-    ['DRAG ' + m.cd.toFixed(3) + '  ·  X-SECTION ' + m.frontal + ' cells' + (m.wings ? '  ·  WINGS ' + m.wings : ''), PAL.ink],
+    ['DRAG ' + m.cd.toFixed(3) + '  ·  X-SECTION ' + m.frontal + ' cells' + (m.streamlined ? '  ·  STREAMLINED ' + m.streamlined : '') + (m.wings ? '  ·  WINGS ' + m.wings : ''), PAL.ink],
     ['WEIGHT F/R ' + Math.round(m.balanceF * 100) + ' / ' + Math.round((1 - m.balanceF) * 100) + (m.freeIntakes < m.engines ? '  ·  an engine can\'t breathe' : ''), m.freeIntakes < m.engines ? PAL.redDark : PAL.ink],
   ];
   lines.forEach(([tx, bg], i) => label(ctx, tx, pad.x, pad.y + 3.0 + i * 0.92, 0.54, PAL.paper, { bg }));

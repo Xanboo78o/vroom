@@ -23,7 +23,7 @@ export const PAL = {
   frame: 0xa9b4c2, wheel: 0x3f454f, hub: 0xf2c230, seat: 0xef4b42, engine: 0xf2963a, engineDark: 0xcf7623,
   tank: 0xb5d33b, tankDark: 0x8fa82a, intake: 0x3d9de6, intakeDark: 0x2b7fc2, battery: 0x2fcfa1,
   batteryDark: 0x22a67f, motor: 0x9b6fe0, motorDark: 0x7c53c4, fan: 0x5dd3cc, fanDark: 0x3fb0a9,
-  wing: 0xf4f6f8, wingDark: 0xc3cad2, skin: 0xf5d2a6, ink: 0x4b4638,
+  wing: 0xf4f6f8, wingDark: 0xc3cad2, aero: 0xdde6ee, skin: 0xf5d2a6, ink: 0x4b4638,
   // ---- critters ----
   duck: 0xf8f2dd, beak: 0xf7931e, leather: 0x9a6540, raccoon: 0x8d9099, mask: 0x3f454f,
   armadillo: 0xc19960, armadilloDark: 0x96743f, otter: 0x7a5132, otterBelly: 0xd9b587,

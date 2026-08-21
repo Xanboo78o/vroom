@@ -82,6 +82,7 @@ export function refresh(m){
   m.occ.clear();
   let minI = 1e9, minJ = 1e9, maxI = -1e9, maxJ = -1e9;
   const colH = new Map();                    // column -> tallest layer index (cross-section)
+  const frontCells = new Map();              // "column|layer" -> { j, type } of the frontmost cell (streamlining)
   for(const [k, p] of m.parts){
     const [i, j, l] = parseKey(k);
     const def = PARTS[p.type];
@@ -93,6 +94,7 @@ export function refresh(m){
       m.occ.set(key(ci, cj, l), k);
       if(ci < minI) minI = ci; if(ci > maxI) maxI = ci; if(cj < minJ) minJ = cj; if(cj > maxJ) maxJ = cj;
       colH.set(ci, Math.max(colH.get(ci) ?? -1, l));
+      const fk = ci + '|' + l, f = frontCells.get(fk); if(!f || cj < f.j) frontCells.set(fk, { j: cj, type: p.type });
     }
     if(p.type === 'seat' && !m.seatKey) m.seatKey = k;
     if(p.type === 'engine') engines++;
@@ -131,8 +133,10 @@ export function refresh(m){
   m.engines = engines; m.motors = motors; m.fans = fans; m.freeFans = freeFans;
   m.tanks = tanks; m.batts = batts; m.wings = wings; m.freeIntakes = freeIntakes; m.highWheels = highWheels;
   m.layers = maxL + 1;
-  let xs = 0; for(const l of colH.values()) xs += l + 1;
-  m.frontal = xs + wings * 2;             // cross-section: width × height in cells (+ wings stick out)
+  let xs = 0, streamlined = 0;
+  for(const f of frontCells.values()){ if(PARTS[f.type].aero){ xs += 0.45; streamlined++; } else xs += 1; }
+  m.streamlined = streamlined;
+  m.frontal = Math.round((xs + wings * 2) * 10) / 10;   // cross-section: width × height in cells (aero-fronted ones count 0.45; wings stick out)
   m.cd = TUNE.dragBase + m.frontal * TUNE.dragArea;
   // wheel loads: the closer a ground wheel sits to the centre of mass, the more weight it carries
   let wsum = 0; for(const wh of m.wheels){ const d = Math.hypot(wh.lx - m.com.x, wh.ly - m.com.y); wh.load = 1 / (d + 0.5); wsum += wh.load; }
