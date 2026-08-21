@@ -20,7 +20,7 @@ export const TUNE = {
   engP: 110,         // drive force per breathing engine
   motP: 72,          // drive force per powered motor
   boostP: 130,       // extra force while boosting (drains battery fast)
-  fuelRate: 0.9,     // fuel % per second per engine at full throttle
+  fuelRate: 0.6,     // fuel units per second per engine at full throttle (a tank holds 100)
   motRate: 2.2,      // battery % per second per motor
   boostRate: 14,
   fanRate: 0.16,     // battery % per second per fan per unit speed
@@ -43,7 +43,7 @@ export function makeMachine(owner, x, y){
     z: 0, vz: 0, air: false, zPrev: 0,       // height (hops!)
     parts: new Map(),                        // anchor "i,j,l" -> {type, rot}
     occ: new Map(),                          // every covered cell "i,j,l" -> anchor key
-    fuel: 100, batt: 100, grace: 2,          // no shearing right after spawn/settle
+    fuel: 100, fuelMax: 100, batt: 100, grace: 2,   // fuelMax = 100 per tank; no shearing right after spawn/settle
     steer: 0, throttle: 0, boosting: false,
     // caches (rebuilt by refresh())
     mass: 1, invI: 1, wheels: [], engines: 0, freeIntakes: 0,
@@ -132,6 +132,7 @@ export function refresh(m){
   m.invI = 1 / Math.max(0.4, m.mass * ext * ext / 6);
   m.engines = engines; m.motors = motors; m.fans = fans; m.freeFans = freeFans;
   m.tanks = tanks; m.batts = batts; m.wings = wings; m.freeIntakes = freeIntakes; m.highWheels = highWheels;
+  m.fuelMax = tanks * 100; if(m.fuel > m.fuelMax) m.fuel = m.fuelMax;
   m.layers = maxL + 1;
   let xs = 0, streamlined = 0;
   for(const f of frontCells.values()){ if(PARTS[f.type].aero){ xs += 0.45; streamlined++; } else xs += 1; }

@@ -381,9 +381,8 @@ function snapshotBlue(m){ m.blue = new Map([...m.parts].map(([k, p]) => [k, { ..
 function actionRepair(){
   if(G.mode !== 'play') return;
   let m = drivenMachine();
-  if(!m){ let bd = 7; for(const mm of G.machines.values()){ if(mm.owner !== myPid()) continue; const d = Math.hypot(mm.x - G.me.x, mm.y - G.me.y); if(d < bd){ bd = d; m = mm; } } }
-  if(!m || m.owner !== myPid() || !m.blue) return;
-  if(!repairOK(m.x, m.y)){ toast('pit-only room — repair in the yellow pads'); return; }
+  if(!m || m.owner !== myPid()) m = myNearestMachine(1e9);     // my car, wherever it is
+  if(!m || !m.blue) return;
   const c0 = { ...m.center }; let n = 0;
   for(const [k, p] of m.blue) if(!m.parts.has(k)){ m.parts.set(k, { ...p }); n++; }
   if(!n) return;
@@ -432,7 +431,7 @@ function toggleBuild(){
 }
 function exitBuild(){
   const m = G.machines.get(G.buildTarget);
-  if(m){ m.editing = false; m.grace = 1.5; m.fuel = 100; m.batt = 100; refresh(m); snapshotBlue(m); if(!G.solo) sendBuilds(); }   // settle never shears; the garage fills you up
+  if(m){ m.editing = false; m.grace = 1.5; refresh(m); m.fuel = m.fuelMax; m.batt = 100; snapshotBlue(m); if(!G.solo) sendBuilds(); }   // settle never shears; the garage fills you up
   G.mode = 'play';
   if(G.ring) G.ring.close();
   G.ghost = null; G.buildCam = null;
@@ -705,7 +704,7 @@ function loop(t){
     stepLap(drv);
     if(inPit(drv.x, drv.y) && Math.hypot(drv.vx, drv.vy) < 2){
       const before = drv.fuel;
-      drv.fuel = Math.min(100, drv.fuel + 22 * dt); drv.batt = Math.min(100, drv.batt + 22 * dt);
+      drv.fuel = Math.min(drv.fuelMax, drv.fuel + 22 * dt); drv.batt = Math.min(100, drv.batt + 22 * dt);
       if(drv.fuel > before) pitFlash(t);
     }
   }
@@ -781,7 +780,7 @@ function hud(drv, t){
     sp.style.display = 'block';
     sp.textContent = Math.round(Math.hypot(drv.vx, drv.vy) * 3.1) + ' mph';
     $('#bars').style.display = 'flex';
-    fu.style.width = drv.fuel + '%'; ba.style.width = drv.batt + '%';
+    fu.style.width = (drv.fuelMax ? drv.fuel / drv.fuelMax * 100 : 0) + '%'; ba.style.width = drv.batt + '%';
     lapEl.style.display = G.lap.next > 0 ? 'block' : 'none';
     if(G.lap.next > 0) lapEl.textContent = (WORLD.tracks[G.lap.track] ? WORLD.tracks[G.lap.track].name + '  ' : '') + fmtMs(performance.now() - G.lap.t0) + (G.lap.best ? '  best ' + fmtMs(G.lap.best) : '');
     const pad = G.padT > 0 ? WORLD.pads.find(p => Math.hypot(drv.x - p.x, drv.y - p.y) < p.r) : null;
