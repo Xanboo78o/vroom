@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- fan: catches air from the FRONT (up), charges batteries. Overwrite me, Adam! -->
+  <circle cx="64" cy="64" r="58" fill="#7fdcd6" stroke="#66b0ab" stroke-width="6"/>
+  <circle cx="64" cy="64" r="46" fill="#a8e8e4"/>
+  <g fill="#5bbab4" stroke="#499592" stroke-width="4" stroke-linejoin="round">
+    <path d="M64 64 C 50 44, 52 20, 68 18 C 76 30, 72 50, 64 64 Z"/>
+    <path d="M64 64 C 84 50, 108 52, 110 68 C 98 76, 78 72, 64 64 Z"/>
+    <path d="M64 64 C 78 84, 76 108, 60 110 C 52 98, 56 78, 64 64 Z"/>
+    <path d="M64 64 C 44 78, 20 76, 18 60 C 30 52, 50 56, 64 64 Z"/>
+  </g>
+  <circle cx="64" cy="64" r="12" fill="#499592" stroke="#3a7774" stroke-width="4"/>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- intake: the mouth faces UP (forward) and needs clear air. Overwrite me, Adam! -->
+  <rect x="10" y="30" width="108" height="92" rx="24" fill="#6fb4e8" stroke="#5990ba" stroke-width="6"/>
+  <rect x="24" y="6" width="80" height="44" rx="16" fill="#4a8fc7" stroke="#3b729f" stroke-width="6"/>
+  <rect x="36" y="16" width="56" height="10" rx="5" fill="#2f5f86"/>
+  <rect x="36" y="32" width="56" height="8" rx="4" fill="#2f5f86"/>
+  <rect x="24" y="62" width="80" height="16" rx="8" fill="#9ccbf0"/>
+  <rect x="24" y="88" width="80" height="16" rx="8" fill="#9ccbf0"/>
+</svg>

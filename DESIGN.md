@@ -1,3 +1,10 @@
+> **PIVOT 2026-08-21 (evening), Adam:** "lets turn kRacing back into what it started as. Itll be a cute fun
+> top down racing game again lol high accentuation on the cute, i want my fun lil vector designs … and itll be
+> full 2d." → The game is now FULL 2D (canvas, his SVGs are the art, single-layer tile builder). Everything below
+> about 3D lighting / shadows / shaders / cameras / post-FX / paint-on-faces is superseded; the 3D build is frozen
+> in `3d/`. The cast, the humour, the blocks-≥3-uses law, optional depth, pure discovery, tracks, modes and the
+> universe all still stand.
+
 # kRacing (was VROOM) — DESIGN.md (the question marathon, started 2026-08-21; capped at 75 rounds)
 
 Adam's four technical pillars: **fully configurable controls · realistic physics + computed

@@ -1,134 +1,107 @@
 /* =============================================================================
-   guy.js — the little guy. Walks the world, hops into seats, gets yeeted
-   when his seat shears off. Flat-vector two-tone dude.
+   guy.js — the little guy. Walks the world (faces the cursor; W toward it,
+   S away, A/D strafe), hops into seats, gets yeeted when his seat shears off.
+   Drawn as Adam's assets/guy.svg (top view) — or a round code-drawn dude.
    ============================================================================= */
-import * as THREE from 'three';
-import { vbox, vcyl, shade, mat } from './parts.js';
-import { artTex } from './art.js';
+import { PAL, shade, tint, hex } from './palette.js';
+import { disc, box, art, shadow, rrect, blob } from './draw.js';
 
-const WALK = 9, RUN = 14, G = 26, JUMP = 9.5;
+const WALK = 9, RUN = 14, GRAV = 26, JUMP = 9.5, R = 0.4;
+export const GUY_SIZE = 1.1;
 
-export function makeGuy(color = 0xe8574f, name = ''){
-  const g = {
+export function makeGuy(color = PAL.red, name = ''){
+  return {
     name, color,
-    pos: new THREE.Vector3(), vel: new THREE.Vector3(),
+    x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0,
     yaw: 0, inMachine: null,          // machine id when seated
-    flying: false,                    // true right after ejection (tumble!)
-    group: buildGuyMesh(color),
-    netP: null, netYaw: 0, remote: false,
-    walkT: 0,
+    flying: false, tumble: 0,         // true right after ejection (tumble!)
+    net: null, remote: false,
+    walkT: 0, moving: 0,
   };
-  return g;
 }
 
-export function buildGuyMesh(color){
-  const g = new THREE.Group();
-  fillGuyMesh(g, color);
-  return g;
-}
-
-// (re)build the guy's look in place — SVG sprite if Adam drew one, blocks if not
-export function fillGuyMesh(g, color, sprite = true){
-  while(g.children.length) g.remove(g.children[0]);
-  const tex = sprite ? artTex('guy') : null;     // top-down = Adam's sprite; 3D cams = the block guy
-  if(tex){
-    const quad = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.8, 1.8),
-      new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.5 })
-    );
-    quad.castShadow = true; quad.receiveShadow = true;
-    quad.rotation.x = -Math.PI / 2;
-    quad.position.y = 0.5;                 // floats a touch: reads over machines
-    g.add(quad);
+export function stepGuy(g, world, input, dt, aim){
+  if(g.inMachine) return;
+  if(g.flying){
+    g.vz -= GRAV * dt;
+    g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt;
+    g.tumble += dt * 9;
+    const gz = world.h(g.x, g.y);
+    if(g.z <= gz){ g.z = gz; g.flying = false; g.vx = g.vy = g.vz = 0; g.tumble = 0; }
     return;
   }
-  const body = vbox(0.42, 0.55, 0.3, color); body.position.y = 0.62; body.name = 'body'; g.add(body);
-  const head = vbox(0.34, 0.3, 0.3, 0xf2d1a8); head.position.y = 1.06; g.add(head);
-  const cap = vbox(0.38, 0.12, 0.34, shade(color, 0.85)); cap.position.y = 1.24; g.add(cap);
-  const legL = vbox(0.16, 0.36, 0.2, 0x4a5560); legL.position.set(-0.11, 0.18, 0); legL.name = 'legL'; g.add(legL);
-  const legR = legL.clone(); legR.position.x = 0.11; legR.name = 'legR'; g.add(legR);
-  const armL = vbox(0.12, 0.4, 0.16, shade(color, 0.88)); armL.position.set(-0.29, 0.68, 0); armL.name = 'armL'; g.add(armL);
-  const armR = armL.clone(); armR.position.x = 0.29; armR.name = 'armR'; g.add(armR);
-}
-
-export function stepGuy(g, world, input, camYaw, dt, aim){
-  if(g.inMachine){ g.group.visible = false; return; }
-  g.group.visible = true;
-
-  if(g.flying){
-    g.vel.y -= G * dt;
-    g.pos.addScaledVector(g.vel, dt);
-    g.group.rotation.x += dt * 9;      // TUMBLE
-    const gy = world.h(g.pos.x, g.pos.z);
-    if(g.pos.y <= gy){ g.pos.y = gy; g.flying = false; g.vel.set(0, 0, 0); g.group.rotation.x = 0; }
+  let mx = 0, my = 0, mag = 0;
+  const speed = input.run ? RUN : WALK;
+  if(aim){
+    const rx = -aim.y, ry = aim.x;                       // right of the aim
+    if(input.up){ mx += aim.x; my += aim.y; }
+    if(input.down){ mx -= aim.x; my -= aim.y; }
+    if(input.right){ mx += rx; my += ry; }
+    if(input.left){ mx -= rx; my -= ry; }
+    g.yaw = Math.atan2(aim.x, -aim.y);                   // always face the cursor
   } else {
-    let mx = 0, mz = 0, mag = 0;
-    const speed = input.run ? RUN : WALK;
-    if(aim){
-      // mouse-aimed: W = toward the cursor, S = away, A/D = strafe around it
-      const rx = -aim.z, rz = aim.x;
-      if(input.up){ mx += aim.x; mz += aim.z; }
-      if(input.down){ mx -= aim.x; mz -= aim.z; }
-      if(input.right){ mx += rx; mz += rz; }
-      if(input.left){ mx -= rx; mz -= rz; }
-      mag = Math.hypot(mx, mz);
-      if(mag > 0){
-        g.vel.x = mx / mag * speed; g.vel.z = mz / mag * speed;
-        g.walkT += dt * speed;
-      } else { g.vel.x = 0; g.vel.z = 0; g.walkT *= 0.8; }
-      g.yaw = Math.atan2(aim.x, aim.z) + Math.PI;   // always face the cursor
-      mag = Math.min(1, mag);
-    } else {
-      if(input.up) mz -= 1; if(input.down) mz += 1;
-      if(input.left) mx -= 1; if(input.right) mx += 1;
-      mag = Math.hypot(mx, mz);
-      if(mag > 0){
-        const a = Math.atan2(mx, mz) + camYaw;
-        g.vel.x = Math.sin(a) * speed; g.vel.z = Math.cos(a) * speed;
-        g.yaw = a + Math.PI;
-        g.walkT += dt * speed;
-      } else { g.vel.x = 0; g.vel.z = 0; g.walkT *= 0.8; }
-    }
-
-    const gy = world.h(g.pos.x, g.pos.z);
-    const onGround = g.pos.y <= gy + 0.02;
-    if(input.jump && onGround) g.vel.y = JUMP;
-    g.vel.y -= G * dt;
-    g.pos.addScaledVector(g.vel, dt);
-    if(g.pos.y < world.h(g.pos.x, g.pos.z)){ g.pos.y = world.h(g.pos.x, g.pos.z); g.vel.y = 0; }
-
-    // wall pushout (circle r=0.4)
-    for(const wl of world.walls){
-      const cx = THREE.MathUtils.clamp(g.pos.x, wl.min.x, wl.max.x);
-      const cz = THREE.MathUtils.clamp(g.pos.z, wl.min.z, wl.max.z);
-      if(g.pos.y > wl.max.y) continue;
-      const dx = g.pos.x - cx, dz = g.pos.z - cz, d2 = dx * dx + dz * dz;
-      if(d2 < 0.16 && d2 > 1e-6){
-        const d = Math.sqrt(d2); g.pos.x += dx / d * (0.4 - d); g.pos.z += dz / d * (0.4 - d);
-      }
-    }
-    // waddle
-    const sw = Math.sin(g.walkT * 1.6) * 0.5 * Math.min(1, mag);
-    for(const nm of ['legL', 'armR']){ const o = g.group.getObjectByName(nm); if(o) o.rotation.x = sw; }
-    for(const nm of ['legR', 'armL']){ const o = g.group.getObjectByName(nm); if(o) o.rotation.x = -sw; }
+    if(input.up) my -= 1; if(input.down) my += 1;
+    if(input.left) mx -= 1; if(input.right) mx += 1;
+    if(mx || my) g.yaw = Math.atan2(mx, -my);
   }
+  mag = Math.hypot(mx, my);
+  if(mag > 0){ g.vx = mx / mag * speed; g.vy = my / mag * speed; g.walkT += dt * speed; }
+  else { g.vx = 0; g.vy = 0; g.walkT *= 0.8; }
+  g.moving += ((mag > 0 ? 1 : 0) - g.moving) * Math.min(1, dt * 10);
 
-  g.group.position.copy(g.pos);
-  g.group.rotation.y = g.yaw;
+  const gz = world.h(g.x, g.y);
+  const onGround = g.z <= gz + 0.02;
+  if(input.jump && onGround) g.vz = JUMP;
+  g.vz -= GRAV * dt;
+  g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt;
+  const gz2 = world.h(g.x, g.y);
+  if(g.z < gz2){ g.z = gz2; g.vz = 0; }
+
+  // wall pushout (circle)
+  for(const wl of world.walls){
+    if(g.z > wl.h) continue;
+    const cx = Math.max(wl.x0, Math.min(wl.x1, g.x)), cy = Math.max(wl.y0, Math.min(wl.y1, g.y));
+    const dx = g.x - cx, dy = g.y - cy, d2 = dx * dx + dy * dy;
+    if(d2 < R * R && d2 > 1e-6){ const d = Math.sqrt(d2); g.x += dx / d * (R - d); g.y += dy / d * (R - d); }
+  }
 }
 
 export function syncRemoteGuy(g, dt){
-  if(!g.netP) return;
-  g.pos.lerp(g.netP, Math.min(1, dt * 10));
-  g.yaw += (g.netYaw - g.yaw) * Math.min(1, dt * 10);
-  g.group.position.copy(g.pos);
-  g.group.rotation.y = g.yaw;
-  g.group.visible = !g.inMachine;
+  if(!g.net) return;
+  const k = Math.min(1, dt * 10);
+  const dx = g.net.x - g.x, dy = g.net.y - g.y;
+  g.x += dx * k; g.y += dy * k;
+  let da = g.net.yaw - g.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); g.yaw += da * k;
+  g.moving += ((Math.hypot(dx, dy) > 0.05 ? 1 : 0) - g.moving) * k;
+  if(g.moving > 0.2) g.walkT += dt * WALK;
 }
 
-export function eject(g, fromPos){
-  g.inMachine = null;
-  g.flying = true;
-  g.pos.copy(fromPos);
-  g.vel.set((Math.random() - 0.5) * 8, 12, (Math.random() - 0.5) * 8);
+export function eject(g, x, y, z){
+  g.inMachine = null; g.flying = true;
+  g.x = x; g.y = y; g.z = z;
+  g.vx = (Math.random() - 0.5) * 8; g.vy = (Math.random() - 0.5) * 8; g.vz = 12;
+}
+
+/* ---- drawing: Adam's sprite or the round dude -------------------------------------- */
+export function drawGuy(ctx, g, zoom, t){
+  if(g.inMachine) return;
+  const S = GUY_SIZE;
+  const k = Math.max(0.4, 1 - g.z * 0.08);
+  shadow(ctx, g.x, g.y, S * 0.42 * (0.7 + 0.3 * k), S * 0.34 * (0.7 + 0.3 * k), 0.2 * k);
+  ctx.save();
+  ctx.translate(g.x, g.y - g.z * 0.5);
+  ctx.rotate(g.yaw + (g.flying ? g.tumble : 0));
+  const bob = Math.sin(g.walkT * 1.6) * 0.06 * g.moving;
+  ctx.scale(1 + bob, 1 - bob);
+  // your colour: a ring at your feet (the sprite is shared art)
+  ctx.beginPath(); ctx.arc(0, 0.05, S * 0.5, 0, Math.PI * 2); ctx.lineWidth = 0.07; ctx.strokeStyle = hex(g.color); ctx.stroke();
+  if(!art(ctx, 'guy', S, S, zoom)){
+    const c = g.color;
+    for(const sx of [-1, 1]) disc(ctx, sx * S * 0.36, S * 0.1 + Math.sin(g.walkT * 1.6 + (sx > 0 ? 0 : Math.PI)) * 0.08 * g.moving, S * 0.12, shade(c, .9), 0.03);   // hands
+    ctx.beginPath(); ctx.ellipse(0, S * 0.06, S * 0.34, S * 0.28, 0, 0, Math.PI * 2); blob(ctx, c, 0.04);   // shoulders
+    disc(ctx, 0, -S * 0.04, S * 0.22, PAL.skin, 0.035);                                                   // head
+    ctx.beginPath(); ctx.arc(0, -S * 0.04, S * 0.22, Math.PI, 0); ctx.closePath(); blob(ctx, shade(c, .85), 0.035);   // cap
+    disc(ctx, 0, -S * 0.2, S * 0.06, PAL.red, 0);                                                         // the lil bobble
+  }
+  ctx.restore();
 }

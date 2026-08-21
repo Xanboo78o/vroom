@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- rear wing: the plane sits at the back (bottom), struts reach forward. Overwrite me, Adam! -->
+  <rect x="30" y="14" width="14" height="70" rx="6" fill="#cbd1d8" stroke="#a2a7ad" stroke-width="4"/>
+  <rect x="84" y="14" width="14" height="70" rx="6" fill="#cbd1d8" stroke="#a2a7ad" stroke-width="4"/>
+  <rect x="4" y="70" width="120" height="44" rx="16" fill="#f1f3f6" stroke="#c1c6cc" stroke-width="6"/>
+  <rect x="4" y="66" width="12" height="52" rx="5" fill="#f26d65" stroke="#c25751" stroke-width="4"/>
+  <rect x="112" y="66" width="12" height="52" rx="5" fill="#f26d65" stroke="#c25751" stroke-width="4"/>
+  <rect x="24" y="80" width="80" height="10" rx="5" fill="#d6dbe1"/>
+</svg>

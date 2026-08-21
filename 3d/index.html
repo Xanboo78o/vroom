@@ -4,26 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>kRacing</title>
-<link rel="stylesheet" href="./style.css?v=1787350454">
+<link rel="stylesheet" href="./style.css?v=1787345650">
 <script src="./js/vendor/supabase.js"></script>
 <!-- every module URL is stamped (?v=) by .git/hooks/pre-commit so a plain reload after a
      deploy never mixes new index.html with 10-minute-cached old JS/CSS (GitHub Pages max-age) -->
 <script type="importmap">
 { "imports": {
-    "./js/main.js": "./js/main.js?v=1787350454",
-    "./js/ring.js": "./js/ring.js?v=1787350454",
-    "./js/parts.js": "./js/parts.js?v=1787350454",
-    "./js/machine.js": "./js/machine.js?v=1787350454",
-    "./js/world.js": "./js/world.js?v=1787350454",
-    "./js/tracks.js": "./js/tracks.js?v=1787350454",
-    "./js/corner.js": "./js/corner.js?v=1787350454",
-    "./js/guy.js": "./js/guy.js?v=1787350454",
-    "./js/art.js": "./js/art.js?v=1787350454",
-    "./js/draw.js": "./js/draw.js?v=1787350454",
-    "./js/palette.js": "./js/palette.js?v=1787350454",
-    "./js/net.js": "./js/net.js?v=1787350454",
-    "./js/voice.js": "./js/voice.js?v=1787350454",
-    "./js/adamtrack.js": "./js/adamtrack.js?v=1787350454"
+    "three": "./js/vendor/three.module.min.js",
+    "three/addons/": "./js/vendor/addons/",
+    "./js/main.js": "./js/main.js?v=1787345650",
+    "./js/machine.js": "./js/machine.js?v=1787345650",
+    "./js/parts.js": "./js/parts.js?v=1787345650",
+    "./js/guy.js": "./js/guy.js?v=1787345650",
+    "./js/art.js": "./js/art.js?v=1787345650",
+    "./js/net.js": "./js/net.js?v=1787345650",
+    "./js/voice.js": "./js/voice.js?v=1787345650",
+    "./js/world.js": "./js/world.js?v=1787345650",
+    "./js/ring.js": "./js/ring.js?v=1787345650",
+    "./js/palette.js": "./js/palette.js?v=1787345650",
+    "./js/gfx.js": "./js/gfx.js?v=1787345650",
+    "./js/postfx.js": "./js/postfx.js?v=1787345650",
+    "./js/light.js": "./js/light.js?v=1787345650",
+    "./js/tiles.js": "./js/tiles.js?v=1787345650",
+    "./js/cam.js": "./js/cam.js?v=1787345650",
+    "./js/skin.js": "./js/skin.js?v=1787345650",
+    "./js/paint.js": "./js/paint.js?v=1787345650",
+    "./js/props.js": "./js/props.js?v=1787345650",
+    "./js/critters.js": "./js/critters.js?v=1787345650",
+    "./js/tracks.js": "./js/tracks.js?v=1787345650",
+    "./js/adamtrack.js": "./js/adamtrack.js?v=1787345650"
 } }
 </script>
 </head>
@@ -64,10 +73,23 @@
     <div class="bar"><i>FUEL</i><div class="fill fuel" id="fuelFill"></div></div>
     <div class="bar"><i>BATT</i><div class="fill batt" id="battFill"></div></div>
   </div>
+  <button id="gfxChip" class="chip br" style="display:none">GFX</button>
+  <button id="camChip" class="chip br2" style="display:none">CAM · TOP</button>
   <div id="board"></div>
   <div id="prompt"></div>
+  <div id="toast"></div>
 </div>
 
-<script type="module" src="./js/main.js?v=1787350454"></script>
+<!-- ================= the cursor (crisp, 90°, no smoothing) ================= -->
+<div id="cur" aria-hidden="true">
+  <svg width="32" height="32" viewBox="0 0 32 32" shape-rendering="crispEdges">
+    <path fill="#c43f38" d="M1 1h12v6H7v6H1z M31 1v12h-6V7h-6V1z M1 31V19h6v6h6v6z M31 31H19v-6h6v-6h6z"/>
+    <path fill="#e8574f" d="M2 2h10v4H6v6H2z M30 2v10h-4V6h-6V2z M2 30V20h4v6h6v4z M30 30H20v-4h6v-6h4z"/>
+    <rect x="12" y="12" width="8" height="8" fill="#c43f38"/>
+    <rect x="13" y="13" width="6" height="6" fill="#e8574f"/>
+  </svg>
+</div>
+
+<script type="module" src="./js/main.js?v=1787345650"></script>
 </body>
 </html>

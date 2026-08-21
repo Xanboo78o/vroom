@@ -1,216 +1,147 @@
 /* =============================================================================
-   parts.js — the Lego catalog.
-   Grid: x/z cells are CELLXZ wide (fine grid), y layers are CELLY tall.
-   Every part covers a FOOTPRINT of cells (fp: [w,d]) — frames come in
-   1x1 / 2x2 / 3x3, everything else is 2x2. That's how you shape an F1 nose,
-   a rally hatch, or a boxy Ford.
-   Flat fill + edges in a darker shade of the same fill (the style).
+   parts.js — the Lego catalog, 2D. A machine is a single layer of tiles on a
+   fine grid (CELL = 0.3 u); every part covers a footprint fp:[w,d] of cells.
+   Frames come in 1x1 / 2x2 / 3x3, everything else is 2x2. Forward = UP (-y).
+   Each part draws as Adam's assets/parts/<type>.svg; the code-drawn fallback
+   below stands in until he draws it. Flat fills, darker-shade outlines.
    ============================================================================= */
-import * as THREE from 'three';
-import { artTex } from './art.js';
-import { PAL, shade } from './palette.js';
-export { shade };
+import { PAL, hex, shade, tint } from './palette.js';
+import { box, disc, rrect, blob, art } from './draw.js';
+import { hasArt } from './art.js';
 
-export const CELLXZ = 0.3;               // fine grid step in x/z
-export const CELLY = 0.6;                // one build layer tall
-const C = 0.6;                           // geometry unit (a 2x2 part is C wide)
+export const CELL = 0.3;                 // fine grid step (x and y)
+export const keyOf = (i, j) => i + ',' + j;
 
-const MATS = new Map();
-export function mat(hex){
-  if(!MATS.has(hex)) MATS.set(hex, new THREE.MeshLambertMaterial({ color: hex, flatShading: true }));
-  return MATS.get(hex);
-}
-const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
-const LINE_MATS = new Map();
-export function lineMat(hex){
-  if(!LINE_MATS.has(hex)) LINE_MATS.set(hex, new THREE.LineBasicMaterial({ color: hex }));
-  return LINE_MATS.get(hex);
-}
-
-// box with vector edges
-export function vbox(w, h, d, hex, edgeF = 0.72){
-  const g = new THREE.Group();
-  const geo = new THREE.BoxGeometry(w, h, d);
-  const m = new THREE.Mesh(geo, mat(hex)); m.castShadow = m.receiveShadow = true; m.userData.hex = hex;
-  const l = new THREE.LineSegments(new THREE.EdgesGeometry(geo), lineMat(shade(hex, edgeF))); l.userData.hex = hex;
-  g.add(m, l);
-  return g;
-}
-export function vcyl(r, len, hex, seg = 12, edgeF = 0.72){
-  const g = new THREE.Group();
-  const geo = new THREE.CylinderGeometry(r, r, len, seg);
-  const m = new THREE.Mesh(geo, mat(hex)); m.castShadow = m.receiveShadow = true; m.userData.hex = hex;
-  const l = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), lineMat(shade(hex, edgeF))); l.userData.hex = hex;
-  g.add(m, l);
-  return g;
-}
-
-/* Part defs.
-   fp      — footprint in grid cells [w, d]; every part is 1 layer tall
-   mass    — light influence only (shape+mechanisms, not weight yet)
-   facing  — part cares about its yaw rotation (needs clear air)
-   shear   — impulse needed to knock it off (wheels pop easiest)                */
 /* Categories — the inner rings of the catalog. Adding one here + `cat:` on parts is
    all it takes; the ring menu lays itself out. Order = clockwise from the top. */
 export const CATS = [
-  { id: 'frame',    label: 'FRAMES',   color: 0xaab4c0 },
-  { id: 'wheel',    label: 'WHEELS',   color: 0x4a4f57 },
-  { id: 'seat',     label: 'SEATS',    color: 0xe8574f },
-  { id: 'engine',   label: 'ENGINE',   color: 0xe69a3c },
-  { id: 'electric', label: 'ELECTRIC', color: 0x46c2a5 },
-  { id: 'aero',     label: 'AERO',     color: 0x5aa7e0 },
+  { id: 'frame',    label: 'FRAMES',   color: PAL.frame },
+  { id: 'wheel',    label: 'WHEELS',   color: PAL.wheel },
+  { id: 'seat',     label: 'SEATS',    color: PAL.seat },
+  { id: 'engine',   label: 'ENGINE',   color: PAL.engine },
+  { id: 'electric', label: 'ELECTRIC', color: PAL.battery },
+  { id: 'aero',     label: 'AERO',     color: PAL.intake },
 ];
 
-export const PARTS = {
-  frame1: {
-    label: '1×1', key: '1', cat: 'frame', fp: [1, 1], mass: 0.3, color: 0xaab4c0, shear: 26,
-    build(){ return vbox(C * .5, C, C * .5, 0xaab4c0); }
+/* fallback drawers: centred on the origin, s = side length in units, forward = up */
+const LW = 0.04;
+function stud(ctx, s, c){ disc(ctx, 0, 0, s * 0.16, tint(c, 0.35), 0); }
+const DRAW = {
+  frame(ctx, s){ box(ctx, -s / 2, -s / 2, s, s, s * 0.22, PAL.frame, LW); stud(ctx, s, PAL.frame); },
+  seat(ctx, s){
+    box(ctx, -s / 2, -s / 2, s, s, s * 0.25, PAL.seat, LW);
+    box(ctx, -s * .34, -s * .34, s * .68, s * .5, s * .12, tint(PAL.seat, .3), 0);        // cushion
+    box(ctx, -s * .4, s * .16, s * .8, s * .26, s * .1, shade(PAL.seat, .85), 0);       // backrest (back = down)
   },
-  frame: {
-    label: '2×2', key: '2', cat: 'frame', fp: [2, 2], mass: 1.0, color: 0xaab4c0, shear: 30,
-    build(){ return vbox(C, C, C, 0xaab4c0); }
+  wheel(ctx, s){
+    box(ctx, -s * .42, -s / 2, s * .84, s, s * .26, PAL.wheel, LW);
+    ctx.fillStyle = hex(tint(PAL.wheel, .18));
+    for(let i = 0; i < 4; i++){ rrect(ctx, -s * .3, -s * .38 + i * s * .22, s * .6, s * .09, s * .04); ctx.fill(); }
+    disc(ctx, 0, 0, s * .17, PAL.hub, LW * .8);
   },
-  frame3: {
-    label: '3×3', key: '3', cat: 'frame', fp: [3, 3], mass: 2.2, color: 0xaab4c0, shear: 36,
-    build(){ return vbox(C * 1.5, C, C * 1.5, 0xaab4c0); }
+  engine(ctx, s){
+    box(ctx, -s / 2, -s / 2, s, s, s * .2, PAL.engine, LW);
+    for(let i = 0; i < 3; i++) disc(ctx, (i - 1) * s * .27, -s * .05, s * .1, PAL.engineDark, 0);
+    box(ctx, -s * .12, s * .3, s * .24, s * .2, s * .06, shade(PAL.engine, .7), 0);        // exhaust stub (back)
   },
-  seat: {
-    label: 'SEAT', key: '4', cat: 'seat', fp: [2, 2], mass: 0.8, color: 0xe8574f, shear: 34,
-    build(){
-      const g = new THREE.Group();
-      const base = vbox(C * .9, C * .35, C * .9, 0xe8574f); base.position.y = -C * .28; g.add(base);
-      const back = vbox(C * .9, C * .75, C * .28, 0xe8574f); back.position.set(0, C * .12, -C * .3); g.add(back);
-      return g;
-    }
+  tank(ctx, s){
+    box(ctx, -s * .36, -s / 2, s * .72, s, s * .36, PAL.tank, LW);
+    disc(ctx, 0, -s * .22, s * .12, PAL.tankDark, 0);
+    box(ctx, -s * .05, -s * .1, s * .1, s * .42, s * .05, tint(PAL.tank, .4), 0);
   },
-  wheel: {
-    label: 'WHEEL', key: '5', cat: 'wheel', fp: [2, 2], mass: 0.9, color: 0x4a4f57, shear: 16,   // pops off easiest
-    build(){
-      const g = new THREE.Group();
-      const tire = vcyl(C * .48, C * .45, 0x4a4f57, 14); tire.rotation.z = Math.PI / 2; g.add(tire);
-      const hub = vcyl(C * .2, C * .48, 0xd8b13c, 8); hub.rotation.z = Math.PI / 2; g.add(hub);
-      return g;
-    }
+  intake(ctx, s){
+    box(ctx, -s * .42, -s * .3, s * .84, s * .8, s * .2, PAL.intake, LW);
+    box(ctx, -s * .3, -s / 2, s * .6, s * .34, s * .12, PAL.intakeDark, 0);               // the mouth (front = up)
   },
-  engine: {
-    label: 'ENGINE', key: '6', cat: 'engine', fp: [2, 2], mass: 1.6, color: 0xe69a3c, shear: 40,
-    build(){
-      const g = new THREE.Group();
-      g.add(vbox(C * .92, C * .7, C * .92, 0xe69a3c));
-      for(let i = 0; i < 3; i++){
-        const p = vcyl(C * .09, C * .3, 0xc57d22, 8);
-        p.position.set((i - 1) * C * .26, C * .45, 0); g.add(p);
-      }
-      return g;
-    }
+  battery(ctx, s){
+    box(ctx, -s * .4, -s * .42, s * .8, s * .84, s * .18, PAL.battery, LW);
+    box(ctx, -s * .16, -s / 2, s * .32, s * .14, s * .05, PAL.batteryDark, 0);           // the tip
+    ctx.fillStyle = hex(tint(PAL.battery, .5));
+    rrect(ctx, -s * .04, -s * .22, s * .08, s * .4, s * .03); ctx.fill();
+    rrect(ctx, -s * .2, -s * .06, s * .4, s * .08, s * .03); ctx.fill();                  // +
   },
-  tank: {
-    label: 'FUEL', key: '7', cat: 'engine', fp: [2, 2], mass: 1.2, color: 0xb9c94e, shear: 34,
-    build(){
-      const g = new THREE.Group();
-      const t = vcyl(C * .42, C * .86, 0xb9c94e, 12); t.rotation.x = Math.PI / 2; g.add(t);
-      const cap = vcyl(C * .12, C * .16, 0x94a33a, 8); cap.position.y = C * .4; g.add(cap);
-      return g;
-    }
+  motor(ctx, s){
+    box(ctx, -s / 2, -s * .36, s, s * .72, s * .36, PAL.motor, LW);
+    box(ctx, -s * .14, -s * .4, s * .28, s * .8, s * .1, PAL.motorDark, 0);             // the band
   },
-  intake: {
-    label: 'INTAKE', key: '8', cat: 'engine', fp: [2, 2], mass: 0.6, color: 0x5aa7e0, shear: 26, facing: true,
-    build(){
-      const g = new THREE.Group();
-      const body = vbox(C * .8, C * .8, C * .55, 0x5aa7e0); body.position.z = -C * .1; g.add(body);
-      const mouth = vbox(C * .62, C * .62, C * .3, 0x3f83b8); mouth.position.z = C * .25; g.add(mouth);
-      return g;
-    }
+  fan(ctx, s, spin = 0){
+    disc(ctx, 0, 0, s * .46, PAL.fan, LW);
+    disc(ctx, 0, 0, s * .36, tint(PAL.fan, .25), 0);
+    ctx.save(); ctx.rotate(spin);
+    for(let i = 0; i < 4; i++){ ctx.rotate(Math.PI / 2); rrect(ctx, -s * .06, -s * .34, s * .12, s * .3, s * .05); blob(ctx, PAL.fanDark, 0); }
+    ctx.restore();
+    disc(ctx, 0, 0, s * .08, PAL.fanDark, 0);
   },
-  battery: {
-    label: 'BATT', key: '9', cat: 'electric', fp: [2, 2], mass: 1.3, color: 0x46c2a5, shear: 34,
-    build(){
-      const g = new THREE.Group();
-      g.add(vbox(C * .85, C * .75, C * .85, 0x46c2a5));
-      const tip = vbox(C * .3, C * .18, C * .3, 0x2f9c82); tip.position.y = C * .45; g.add(tip);
-      return g;
-    }
-  },
-  motor: {
-    label: 'MOTOR', key: '0', cat: 'electric', fp: [2, 2], mass: 1.1, color: 0x9b6fd6, shear: 36,
-    build(){
-      const g = new THREE.Group();
-      const b = vcyl(C * .38, C * .8, 0x9b6fd6, 12); b.rotation.z = Math.PI / 2; g.add(b);
-      const band = vcyl(C * .41, C * .2, 0x7d51b8, 12); band.rotation.z = Math.PI / 2; g.add(band);
-      return g;
-    }
-  },
-  fan: {
-    label: 'FAN', key: '', cat: 'electric', fp: [2, 2], mass: 0.7, color: 0x6fd6d0, shear: 24, facing: true,
-    build(){
-      const g = new THREE.Group();
-      const ring = vcyl(C * .44, C * .22, 0x6fd6d0, 14); ring.rotation.x = Math.PI / 2; g.add(ring);
-      const blades = new THREE.Group();
-      for(let i = 0; i < 4; i++){
-        const bl = vbox(C * .1, C * .36, C * .06, 0x4db3ad);
-        bl.rotation.z = i * Math.PI / 2;
-        bl.translateY(C * .19);
-        blades.add(bl);
-      }
-      blades.name = 'spin';                       // main.js spins this while charging
-      g.add(blades);
-      return g;
-    }
-  },
-  wing: {
-    label: 'WING', key: '', cat: 'aero', fp: [2, 2], mass: 0.5, color: 0xeef1f4, shear: 22, facing: true,
-    build(){
-      const g = new THREE.Group();
-      const plane = vbox(C * 1.0, C * .12, C * .5, 0xeef1f4); plane.position.y = C * .2; g.add(plane);
-      const strutL = vbox(C * .08, C * .4, C * .08, 0xc9ced4); strutL.position.set(-C * .35, -C * .05, 0); g.add(strutL);
-      const strutR = strutL.clone(); strutR.position.x = C * .35; g.add(strutR);
-      return g;
-    }
+  wing(ctx, s){
+    for(const sx of [-1, 1]) box(ctx, sx * s * .3 - s * .05, -s * .4, s * .1, s * .6, s * .04, PAL.wingDark, 0);   // struts
+    box(ctx, -s / 2, s * .05, s, s * .32, s * .12, PAL.wing, LW);                          // the plane (back)
+    box(ctx, -s * .4, s * .1, s * .8, s * .08, s * .04, tint(PAL.wingDark, .4), 0);
   },
 };
 
-export const PART_ORDER = ['frame1', 'frame', 'frame3', 'seat', 'wheel', 'engine',
-  'tank', 'intake', 'battery', 'motor', 'fan', 'wing'];
+/* Part defs.
+   fp      — footprint in grid cells [w, d]
+   mass    — light influence only (shape+mechanisms, not weight yet)
+   facing  — part cares about its rotation (needs clear air ahead)
+   shear   — impulse needed to knock it off (wheels pop easiest)
+   art     — assets/parts/<art>.svg (falls back along `alt`)                        */
+export const PARTS = {
+  frame1:  { label: '1×1',    key: '1', cat: 'frame',    fp: [1, 1], mass: 0.3, color: PAL.frame,   shear: 26, art: 'frame1', alt: 'frame', draw: DRAW.frame },
+  frame:   { label: '2×2',    key: '2', cat: 'frame',    fp: [2, 2], mass: 1.0, color: PAL.frame,   shear: 30, art: 'frame',  draw: DRAW.frame },
+  frame3:  { label: '3×3',    key: '3', cat: 'frame',    fp: [3, 3], mass: 2.2, color: PAL.frame,   shear: 36, art: 'frame3', alt: 'frame', draw: DRAW.frame },
+  seat:    { label: 'SEAT',   key: '4', cat: 'seat',     fp: [2, 2], mass: 0.8, color: PAL.seat,    shear: 34, art: 'seat',   draw: DRAW.seat },
+  wheel:   { label: 'WHEEL',  key: '5', cat: 'wheel',    fp: [2, 2], mass: 0.9, color: PAL.wheel,   shear: 16, art: 'wheel',  draw: DRAW.wheel },   // pops off easiest
+  engine:  { label: 'ENGINE', key: '6', cat: 'engine',   fp: [2, 2], mass: 1.6, color: PAL.engine,  shear: 40, art: 'engine', draw: DRAW.engine },
+  tank:    { label: 'FUEL',   key: '7', cat: 'engine',   fp: [2, 2], mass: 1.2, color: PAL.tank,    shear: 34, art: 'tank',   draw: DRAW.tank },
+  intake:  { label: 'INTAKE', key: '8', cat: 'engine',   fp: [2, 2], mass: 0.6, color: PAL.intake,  shear: 26, art: 'intake', draw: DRAW.intake, facing: true },
+  battery: { label: 'BATT',   key: '9', cat: 'electric', fp: [2, 2], mass: 1.3, color: PAL.battery, shear: 34, art: 'battery', draw: DRAW.battery },
+  motor:   { label: 'MOTOR',  key: '0', cat: 'electric', fp: [2, 2], mass: 1.1, color: PAL.motor,   shear: 36, art: 'motor',  draw: DRAW.motor },
+  fan:     { label: 'FAN',    key: '',  cat: 'electric', fp: [2, 2], mass: 0.7, color: PAL.fan,     shear: 24, art: 'fan',    draw: DRAW.fan, facing: true },
+  wing:    { label: 'WING',   key: '',  cat: 'aero',     fp: [2, 2], mass: 0.5, color: PAL.wing,    shear: 22, art: 'wing',   draw: DRAW.wing, facing: true },
+};
+export const PART_ORDER = ['frame1', 'frame', 'frame3', 'seat', 'wheel', 'engine', 'tank', 'intake', 'battery', 'motor', 'fan', 'wing'];
 
 export function fpOf(type){ return PARTS[type].fp || [2, 2]; }
+export function sizeOf(type){ const [w, d] = fpOf(type); return [w * CELL, d * CELL]; }
 
-// machine-local center (pre-center-offset) of a part anchored at cell (x,y,z)
-export function localCenterOf(x, y, z, type){
+// machine-local centre (before the centre offset) of a part anchored at cell (i,j)
+export function localCenterOf(i, j, type){
   const [w, d] = fpOf(type);
-  return new THREE.Vector3((x + (w - 1) / 2) * CELLXZ, y * CELLY, (z + (d - 1) / 2) * CELLXZ);
+  return { x: (i + (w - 1) / 2) * CELL, y: (j + (d - 1) / 2) * CELL };
 }
+// every cell a part covers, from its anchor
+export function* cellsOf(i, j, type){
+  const [w, d] = fpOf(type);
+  for(let a = 0; a < w; a++) for(let b = 0; b < d; b++) yield [i + a, j + b];
+}
+// facing direction of a rotated part, in grid steps (rot 0 = up = forward)
+export function facingDir(rot){ return [[0, -1], [1, 0], [0, 1], [-1, 0]][rot & 3]; }
 
-// build a display mesh for one placed part (rot = quarter-turns around Y)
-export function buildPartMesh(type, rot = 0){
-  const def = PARTS[type];
-  const g = def.build();
-  // Adam's SVG as the top face (the game is viewed from above)
-  const tex = artTex(type);
-  if(tex){
-    const [fw, fd] = fpOf(type);
-    const box = new THREE.Box3().setFromObject(g);
-    const quad = new THREE.Mesh(
-      new THREE.PlaneGeometry(fw * CELLXZ * 0.985, fd * CELLXZ * 0.985),
-      new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.5 })
-    );
-    quad.receiveShadow = true;
-    quad.rotation.set(-Math.PI / 2, 0, Math.PI);   // svg "up" = machine forward
-    quad.position.y = box.max.y + 0.012;
-    g.add(quad);
+/* draw one part centred on the origin (caller translated). rot = quarter turns. */
+export function drawPart(ctx, type, rot = 0, zoom = 40, alpha = 1, spin = 0, steer = 0){
+  const def = PARTS[type]; if(!def) return;
+  const [w, d] = sizeOf(type);
+  ctx.save();
+  ctx.rotate(rot * Math.PI / 2 + steer);
+  let key = 'parts/' + def.art;
+  if(!hasArt(key) && def.alt) key = 'parts/' + def.alt;
+  if(!art(ctx, key, w, d, zoom, alpha)){
+    if(alpha < 1) ctx.globalAlpha *= alpha;
+    def.draw(ctx, Math.max(w, d), spin);
   }
-  g.rotation.y = rot * Math.PI / 2;
-  const wrap = new THREE.Group();
-  wrap.add(g);
-  // invisible full-footprint hitbox: hovering ANYWHERE over a part's cells hits that part
-  // (meshes are smaller than their footprint — without this the ray falls through to the layer below)
-  const [fw, fd] = fpOf(type);
-  const hit = new THREE.Mesh(new THREE.BoxGeometry(fw * CELLXZ, CELLY, fd * CELLXZ), HIT_MAT);
-  hit.name = 'hit'; hit.castShadow = false;
-  wrap.add(hit);
-  return wrap;
+  ctx.restore();
 }
 
-// facing direction of a rotated part, in grid steps
-export function facingDir(rot){
-  return [[0, 0, 1], [1, 0, 0], [0, 0, -1], [-1, 0, 0]][rot & 3];
+/* part icons for the ring: rendered once per part, cleared by T */
+const ICONS = new Map();
+export function partIcon(type){
+  if(ICONS.has(type)) return ICONS.get(type);
+  const N = 96, cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const x = cv.getContext('2d');
+  const [w] = sizeOf(type);
+  const scale = 84 / (3 * CELL);                    // shared scale: a 1×1 LOOKS smaller than a 3×3
+  x.translate(N / 2, N / 2); x.scale(scale, scale);
+  drawPart(x, type, 0, scale);
+  const url = cv.toDataURL(); ICONS.set(type, url); return url;
 }
+export function clearIcons(){ ICONS.clear(); }

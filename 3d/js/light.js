@@ -38,7 +38,7 @@ export function initLight(scene, cfg){
   DAY.scene = scene;
   if(cfg) DAY.cfg = cfg;
   scene.background = new THREE.Color(0xbfe3f2);
-  scene.fog = new THREE.Fog(0xbfe3f2, 260, 520);
+  scene.fog = new THREE.Fog(0xbfe3f2, 380, 880);
 
   DAY.hemi = new THREE.HemisphereLight(0xffffff, 0xa8c98a, 1.0);
   scene.add(DAY.hemi);

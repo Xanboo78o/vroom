@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="112" height="160" viewBox="0 0 112 160">
+  <!-- TOMATHY: horse-sized duck, from above, facing UP. Saddle + saddle bag (Jimothy inside). Overwrite me, Adam! -->
+  <ellipse cx="56" cy="146" rx="18" ry="11" fill="#f7f2e3" stroke="#c6c2b6" stroke-width="5"/>
+  <ellipse cx="22" cy="92" rx="13" ry="30" transform="rotate(12 22 92)" fill="#ebe5d4" stroke="#c6c2b6" stroke-width="5"/>
+  <ellipse cx="90" cy="92" rx="13" ry="30" transform="rotate(-12 90 92)" fill="#ebe5d4" stroke="#c6c2b6" stroke-width="5"/>
+  <ellipse cx="56" cy="92" rx="36" ry="58" fill="#f7f2e3" stroke="#c6c2b6" stroke-width="5"/>
+  <rect x="30" y="70" width="52" height="44" rx="10" fill="#9a6a47" stroke="#7b5539" stroke-width="5"/>
+  <rect x="36" y="78" width="40" height="10" rx="5" fill="#b4835d"/>
+  <rect x="4" y="84" width="26" height="30" rx="8" fill="#8a5f40" stroke="#7b5539" stroke-width="4"/>
+  <circle cx="17" cy="92" r="9" fill="#9699a2" stroke="#787b83" stroke-width="3"/>
+  <rect x="9" y="89" width="16" height="5" rx="2.5" fill="#4f5560"/>
+  <circle cx="12" cy="85" r="3" fill="#4f5560"/><circle cx="22" cy="85" r="3" fill="#4f5560"/>
+  <circle cx="56" cy="30" r="22" fill="#f7f2e3" stroke="#c6c2b6" stroke-width="5"/>
+  <rect x="44" y="2" width="24" height="22" rx="9" fill="#f39a3a" stroke="#c27b2e" stroke-width="4"/>
+  <circle cx="47" cy="26" r="3.5" fill="#4f5560"/><circle cx="65" cy="26" r="3.5" fill="#4f5560"/>
+</svg>

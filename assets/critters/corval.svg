@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="144" viewBox="0 0 96 144">
+  <!-- CORVAL: otter from above, ALWAYS holding his coral. Overwrite me, Adam! -->
+  <rect x="40" y="100" width="16" height="44" rx="8" fill="#7a5638" stroke="#61442c" stroke-width="4"/>
+  <ellipse cx="48" cy="74" rx="30" ry="40" fill="#7a5638" stroke="#61442c" stroke-width="5"/>
+  <ellipse cx="48" cy="78" rx="14" ry="24" fill="#d3b48c"/>
+  <circle cx="26" cy="26" r="8" fill="#7a5638" stroke="#61442c" stroke-width="3"/><circle cx="70" cy="26" r="8" fill="#7a5638" stroke="#61442c" stroke-width="3"/>
+  <circle cx="48" cy="36" r="24" fill="#7a5638" stroke="#61442c" stroke-width="5"/>
+  <ellipse cx="48" cy="42" rx="11" ry="8" fill="#d3b48c"/>
+  <circle cx="48" cy="38" r="3.5" fill="#4f5560"/>
+  <circle cx="39" cy="30" r="3" fill="#4f5560"/><circle cx="57" cy="30" r="3" fill="#4f5560"/>
+  <rect x="16" y="40" width="10" height="34" rx="5" fill="#7a5638" stroke="#61442c" stroke-width="3" transform="rotate(-20 21 57)"/>
+  <rect x="70" y="40" width="10" height="34" rx="5" fill="#7a5638" stroke="#61442c" stroke-width="3" transform="rotate(20 75 57)"/>
+  <rect x="44" y="2" width="8" height="30" rx="4" fill="#f59aa0" stroke="#c47b80" stroke-width="3"/>
+  <rect x="30" y="6" width="8" height="22" rx="4" fill="#f7b26a" stroke="#c58e55" stroke-width="3" transform="rotate(-25 34 17)"/>
+  <rect x="58" y="6" width="8" height="22" rx="4" fill="#f7b26a" stroke="#c58e55" stroke-width="3" transform="rotate(25 62 17)"/>
+</svg>

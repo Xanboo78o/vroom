@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- KRIS (Krisssstoper): got lost, got found. Hoodie, headset, mug. Rule: LAUGH. Overwrite me, Adam! -->
+  <circle cx="22" cy="76" r="13" fill="#6fb4e8" stroke="#5990ba" stroke-width="5"/>
+  <circle cx="106" cy="76" r="13" fill="#6fb4e8" stroke="#5990ba" stroke-width="5"/>
+  <circle cx="110" cy="96" r="9" fill="#fffdf6" stroke="#cfc9bb" stroke-width="4"/>
+  <ellipse cx="64" cy="72" rx="42" ry="34" fill="#6fb4e8" stroke="#5990ba" stroke-width="6"/>
+  <circle cx="64" cy="58" r="27" fill="#f5d6b0" stroke="#c4ab8d" stroke-width="6"/>
+  <path d="M35 62 A29 29 0 0 1 93 62 L93 68 A32 26 0 0 0 35 68 Z" fill="#4a8fc7" stroke="#3b729f" stroke-width="5" stroke-linejoin="round"/>
+  <rect x="36" y="52" width="56" height="8" rx="4" fill="#5a5546"/>
+  <circle cx="38" cy="58" r="8" fill="#5a5546"/><circle cx="90" cy="58" r="8" fill="#5a5546"/>
+  <rect x="40" y="62" width="6" height="22" rx="3" fill="#5a5546" transform="rotate(-20 43 73)"/>
+  <circle cx="57" cy="66" r="2.5" fill="#5a5546"/><circle cx="71" cy="66" r="2.5" fill="#5a5546"/>
+  <path d="M56 76 Q64 82 72 76" stroke="#5a5546" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>

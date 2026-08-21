@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- fuel tank: a pill with a cap. Overwrite me, Adam! -->
+  <rect x="20" y="6" width="88" height="116" rx="44" fill="#c2d45a" stroke="#9baa48" stroke-width="6"/>
+  <rect x="34" y="24" width="14" height="70" rx="7" fill="#dbe88a"/>
+  <circle cx="64" cy="36" r="14" fill="#9eb043" stroke="#7f8d36" stroke-width="5"/>
+  <rect x="56" y="32" width="16" height="8" rx="4" fill="#c2d45a"/>
+  <text x="64" y="96" text-anchor="middle" font-family="Trebuchet MS, sans-serif" font-weight="900" font-size="26" fill="#7f8d36">FUEL</text>
+</svg>

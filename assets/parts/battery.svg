@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- battery with a lil bolt. Overwrite me, Adam! -->
+  <rect x="40" y="4" width="48" height="20" rx="8" fill="#3fae93" stroke="#328b76" stroke-width="5"/>
+  <rect x="12" y="18" width="104" height="106" rx="22" fill="#5fd0b4" stroke="#4ca690" stroke-width="6"/>
+  <rect x="24" y="30" width="80" height="22" rx="11" fill="#8fe0cb"/>
+  <polygon points="70,50 46,84 62,84 54,110 82,72 66,72 76,50" fill="#fffdf6" stroke="#4ca690" stroke-width="4" stroke-linejoin="round"/>
+</svg>
