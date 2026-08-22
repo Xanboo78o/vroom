@@ -13,6 +13,7 @@ import { SURF, paintSurface, catmull } from './tracks.js';
 import { pat } from './tiles.js';
 import { worldToLocal, localToWorld, topAt } from './machine.js';
 import { CELL, keyOf, parseKey, PARTS, facingDir, cellsOf } from './parts.js';
+import { stepAir, settleAir, sampleAir, partsHash } from './air.js';
 
 export const GARAGE = {
   x: -330, y: 420,
@@ -109,32 +110,33 @@ export function stepFlow(dt, m){
   const pad = padOf(m); const F = GARAGE.flow;
   if(!pad || GARAGE.wind <= 0){ F.length = 0; return; }
   const W = GARAGE.wind, vy0 = 3 + W * 0.09;
+  // the fluid: a few lattice steps per frame (more when the wind is up — it LOOKS faster, loads scale by W² anyway)
+  const A = stepAir(m, W > 120 ? 4 : 3);
   GARAGE.spawnT -= dt;
   const maxLayer = m.layers;                         // one layer ABOVE the tallest stack gets air too
-  while(GARAGE.spawnT <= 0 && F.length < 110){
-    GARAGE.spawnT += 0.025;
+  while(GARAGE.spawnT <= 0 && F.length < 130){
+    GARAGE.spawnT += 0.022;
     const l = Math.random() < 0.5 || maxLayer < 1 ? 0 : 1 + Math.floor(Math.random() * maxLayer);
     F.push({ x: pad.x - pad.w / 2 + 0.6 + Math.random() * (pad.w - 1.2), y: pad.y - pad.d / 2 + 1.8, vx: 0, vy: vy0 * (0.9 + Math.random() * 0.2), trail: [], life: 1, suck: false, l });
   }
-  const L = {};
+  const L = {}, S = {};
+  const ca = Math.cos(m.a), sa = Math.sin(m.a);
   for(let i = F.length - 1; i >= 0; i--){
     const p = F[i];
     if(p.suck){ p.life -= dt * 4; if(p.life <= 0) F.splice(i, 1); continue; }
     p.trail.push(p.x, p.y); if(p.trail.length > 16) p.trail.splice(0, 2);
-    worldToLocal(m, p.x, p.y + 0.35, L);
-    const ci = Math.round(L.x / CELL), cj = Math.round(L.y / CELL);
-    const top = topAt(m, ci, cj);
-    if(top >= p.l){                                   // something this tall is in the way
-      const ak = m.occ.get(keyOf(ci, cj, p.l)); const part = ak && m.parts.get(ak);
-      const breathes = part && (part.type === 'intake' || part.type === 'fan') && part.rot === 0;
-      if(breathes && Math.abs(L.y / CELL - (parseKey(ak)[1] - 0.5)) < 1.2){ p.suck = true; p.vx = p.vy = 0; continue; }
-      const aero = part && PARTS[part.type].aero;
-      let side = L.x < m.com.x ? -1 : 1;
-      if(aero){ const cx = part.lx != null ? part.lx : (parseKey(ak)[0] + 0.5) * CELL;     // slide along the slope: wedge/curve rot 0 sheds right, rot 3 sheds left, nose/panel split at their middle
-        side = aero === 'nose' || aero === 'panel' || aero === 'banana' ? (L.x < cx ? -1 : 1) : part.rot === 0 ? 1 : part.rot === 3 ? -1 : (L.x < cx ? -1 : 1); }
-      p.vx += side * (aero ? 34 + W * 0.3 : 22 + W * 0.25 + (top - p.l) * 8) * dt; p.vy = Math.max(2.5, p.vy - (aero ? 4 : 14 + W * 0.2) * dt);
-    } else { p.vx *= Math.pow(0.05, dt); p.vy += (vy0 - p.vy) * Math.min(1, dt * 3); }
+    worldToLocal(m, p.x, p.y, L);
+    // breathing intakes / fans still swallow the air that reaches their mouth
+    { const ci = Math.round(L.x / CELL), cj = Math.round((L.y + 0.35) / CELL); const ak = m.occ.get(keyOf(ci, cj, p.l)); const part = ak && m.parts.get(ak);
+      if(part && (part.type === 'intake' || part.type === 'fan') && part.rot === 0 && Math.abs((L.y + 0.35) / CELL - (parseKey(ak)[1] - 0.5)) < 1.2){ p.suck = true; p.vx = p.vy = 0; continue; } }
+    // ride the velocity field (machine-local → world); off the lattice = free stream
+    const v = sampleAir(m, L.x, L.y, p.l, S);
+    let tx = 0, ty = 1;
+    if(v){ if(v.solid && Math.hypot(v.x, v.y) < 0.15){ F.splice(i, 1); continue; } tx = v.x; ty = v.y; }
+    const wx = (tx * ca - ty * sa) * vy0, wy = (tx * sa + ty * ca) * vy0;
+    p.vx += (wx - p.vx) * Math.min(1, dt * 12); p.vy += (wy - p.vy) * Math.min(1, dt * 12);
     p.x += p.vx * dt; p.y += p.vy * dt;
+    p.speed = Math.hypot(tx, ty);
     if(p.y > pad.y + pad.d / 2 - 1.2 || p.x < pad.x - pad.w / 2 + 0.3 || p.x > pad.x + pad.w / 2 - 0.3) F.splice(i, 1);
   }
 }
@@ -143,7 +145,7 @@ export function drawFlow(ctx){
   for(const p of GARAGE.flow){
     if(p.trail.length < 4) continue;
     const col = AIR_COLORS[p.l % AIR_COLORS.length];
-    ctx.strokeStyle = rgba(p.suck ? PAL.intake : col, p.suck ? 0.9 * p.life : (p.l === 0 ? 0.55 : 0.75));
+    ctx.strokeStyle = rgba(p.suck ? PAL.intake : col, p.suck ? 0.9 * p.life : Math.min(0.95, (p.l === 0 ? 0.5 : 0.7) * (0.6 + 0.5 * (p.speed || 1))));   // faster air = brighter streak
     ctx.beginPath(); ctx.moveTo(p.trail[0], p.trail[1]); for(let k = 2; k < p.trail.length; k += 2) ctx.lineTo(p.trail[k], p.trail[k + 1]); ctx.lineTo(p.x, p.y); ctx.stroke();
     if(p.suck){ ctx.beginPath(); ctx.arc(p.x, p.y, 0.25 * (1 - p.life) + 0.08, 0, 7); ctx.fillStyle = rgba(PAL.intake, 0.6 * p.life); ctx.fill(); }
   }
@@ -175,11 +177,18 @@ export function airLoads(m){
   }
   return out;
 }
-export function windBreakKey(m, W = GARAGE.wind){
+/* the loads to use: the fluid sim's (when it has settled on THIS build), else the column estimate.
+   burst = settle the sim right now (on the track, after a shear) */
+export function loadsOf(m, burst = false){
+  if(m.airLoad && m.airHash === partsHash(m)) return m.airLoad;
+  if(burst){ settleAir(m); return m.airLoad; }
+  return airLoads(m);
+}
+export function windBreakKey(m, W = GARAGE.wind, burst = false){
   if(W <= 0) return null;
   const q = (W / 60) * (W / 60) * 2.9;
   let worst = null, worstK = 0;
-  for(const [k, load] of airLoads(m)){
+  for(const [k, load] of loadsOf(m, burst)){
     const over = q * load / PARTS[m.parts.get(k).type].shear;
     if(over > 1 && over > worstK){ worstK = over; worst = k; }
   }
@@ -188,7 +197,7 @@ export function windBreakKey(m, W = GARAGE.wind){
 /* the air speed (mph — wind OR your own speed) at which this build's weakest part lets go */
 export function breakPoint(m){
   let best = 1e9;
-  for(const [k, load] of airLoads(m)){
+  for(const [k, load] of loadsOf(m)){
     const w = 60 * Math.sqrt(PARTS[m.parts.get(k).type].shear / (2.9 * load));
     if(w < best) best = w;
   }
@@ -202,7 +211,7 @@ export function drawReadout(ctx, m){
   const lines = [
     ['WIND ' + Math.round(GARAGE.wind) + ' mph  ·  [ ] to change  ·  BREAKS AT ' + (bp < 1e8 ? Math.round(bp) + ' mph' : '—') + ' (wind or your speed)', GARAGE.wind >= bp ? PAL.redDark : PAL.ink],
     ['MASS ' + m.mass.toFixed(1) + '  ·  LAYERS ' + m.layers + (m.highWheels ? '  ·  ' + m.highWheels + ' wheel' + (m.highWheels > 1 ? 's' : '') + ' off the ground!' : ''), PAL.ink],
-    ['DRAG ' + m.cd.toFixed(3) + '  ·  X-SECTION ' + m.frontal + ' cells' + (m.streamlined ? '  ·  STREAMLINED ' + m.streamlined : '') + (m.wings ? '  ·  WINGS ' + m.wings : ''), PAL.ink],
+    ['DRAG ' + m.cd.toFixed(3) + (m.airLoad && m.airHash === partsHash(m) ? '  ·  AIR PUSH ' + m.frontalAir + ' (live sim)' : '  ·  X-SECTION ' + m.frontal + ' cells' + (m.streamlined ? '  ·  STREAMLINED ' + m.streamlined : '')) + (m.wings ? '  ·  WINGS ' + m.wings : ''), PAL.ink],
     ['WEIGHT F/R ' + Math.round(m.balanceF * 100) + ' / ' + Math.round((1 - m.balanceF) * 100) + (m.fins ? '  ·  FINS ' + m.fins : '') + (m.freeIntakes < m.engineNeeds ? '  ·  V8/JET breathe ' + Math.round(100 * m.freeIntakes / m.engineNeeds) + '%' : '') + (m.freeIntakes && m.engines ? '  ·  intakes +' + (8 * Math.min(3, m.freeIntakes)) + '%' : '') + (m.turbos ? '  ·  TURBO ' + m.freeTurbos + '/' + m.turbos : '') + (m.solarFree || m.parts.size && [...m.parts.values()].some(p => p.type === 'solar') ? '  ·  SOLAR ' + m.solarFree : ''), m.freeIntakes < m.engineNeeds ? PAL.redDark : PAL.ink],
     ['POWER ' + (m.enginePower ? 'eng ' + m.enginePower.toFixed(1) : '') + (m.jets ? '  ·  JET ' + m.jets : '') + (m.motors ? '  ·  motors ' + m.motors : '') + (m.thrusters.length ? '  ·  THRUST ' + m.thrusters.length : '') + (m.brakes.length ? '  ·  BRAKES ' + m.brakes.length : '  ·  NO BRAKES') + (m.segs.length > 1 ? '  ·  HINGED ×' + (m.segs.length - 1) : '') + (m.panels ? '  ·  PANELS ' + m.panels : '') + '  ·  right-click a block to configure', m.brakes.length ? PAL.ink : PAL.redDark],
   ];

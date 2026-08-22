@@ -12,6 +12,7 @@ import { GAD, addPuddle, addCaltrop, popCaltrop, addCloud, slipAt, stepGadgets, 
 import { makeCfgPanel, keyName } from './cfgpanel.js';
 import { honk, squeak, thud, wakeAudio } from './sfx.js';
 import { GARAGE, inGarage, padOf, stepFlow, drawFlow, drawReadout, setWind, windBreakKey } from './garage.js';
+import { settleAir, partsHash } from './air.js';
 import { buildWorld, WORLD, inPit, drawWorld, drawCanopy, surfaceAt } from './world.js';
 import { SURF } from './tracks.js';
 import { makeGuy, stepGuy, syncRemoteGuy, eject, drawGuy, GUY_SIZE } from './guy.js';
@@ -485,7 +486,7 @@ function toggleBuild(){
 }
 function exitBuild(){
   const m = G.machines.get(G.buildTarget);
-  if(m){ m.editing = false; m.grace = 1.5; restock(m); refresh(m); for(const s of m.segs){ s.rel = 0; s.wrel = 0; } m.fuel = m.fuelMax; m.batt = m.battMax; snapshotBlue(m); if(!G.solo) sendBuilds(); }   // settle never shears; the garage fills you up
+  if(m){ m.editing = false; m.grace = 1.5; restock(m); refresh(m); if(m.airLoad && m.airHash === partsHash(m)) m.cd = TUNE.dragBase + (m.frontalAir + m.wings * 2) * TUNE.dragArea; for(const s of m.segs){ s.rel = 0; s.wrel = 0; } m.fuel = m.fuelMax; m.batt = m.battMax; snapshotBlue(m); if(!G.solo) sendBuilds(); }   // settle never shears; the garage fills you up; keep the tunnel's real drag
   G.mode = 'play';
   if(G.ring) G.ring.close();
   if(G.cfg) G.cfg.close();
@@ -704,7 +705,7 @@ function onFlat(m, wh, c){ burst(c.x, c.y, 6, PAL.caltrop, 3, 0.08); if(!G.solo)
 function airStress(m, dt, W, driving){
   m.windT = (m.windT || 0) - dt; if(m.windT > 0) return;
   if(!driving && G.mode !== 'build') return;
-  const k = windBreakKey(m, W); if(!k || m.parts.size <= 1) return;
+  const k = windBreakKey(m, W); if(!k || m.parts.size <= 1) return;   // never burst-settle mid-race (uses the garage-settled loads, or the cheap estimate after a shear)
   m.windT = 0.35;
   const c0 = { ...m.center };
   const gone = removePartKeys(m, [k]); anchorFix(m, c0);

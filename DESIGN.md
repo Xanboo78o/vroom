@@ -700,3 +700,16 @@ AND/OR/NOT/NOR. Gadgets room toggle on the CREATE ROOM card. Count: 63 blocks.
   column:** a cell with nothing ahead takes load 1; every other part ahead in its column cuts it ×0.2 if AERO (nose /
   wedge / curve / panel) or ×0.5 if blunt; a part's own body doesn't load itself; aero parts take half. Readout says
   "BREAKS AT N mph (wind or your speed)".
+
+## UPDATE 3 — REAL AIR (2026-08-22, Adam: "make air actually behave like air lol")
+js/air.js: a D2Q9 lattice-Boltzmann fluid runs over each LAYER of a build in its own frame (R=4
+nodes/cell, fixed inlet speed so it's shape-only + always stable). Air streams in from the front,
+bounces off the real shapes (squares, the nose/wedge/curve triangles & arcs, drawn PANEL polygons),
+speeds up around edges, stalls in front of blunt blocks, sheds wakes/vortices behind them. The
+tunnel particles now RIDE the velocity field. Per-block AIR LOAD = the momentum flux of air actually
+impinging on that block's exposed faces (read from the field → a block in a wake reads ~0, an exposed
+front reads high); aero shapes shed the flow (×0.45), so a nose in front lifts the whole build's
+break point (nose-fronted 207 mph vs blunt 153). Whole-body drag → m.cd. The garage sim converges
+live (entry stays ~8 ms; the readout uses the cheap column estimate until it's ready, then the sim).
+On the track the garage-settled loads persist, so break-at-speed costs nothing per frame; after a
+mid-race shear it falls back to the estimate (never a synchronous re-settle).
