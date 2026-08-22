@@ -693,3 +693,10 @@ wall-kick hop), ROTOR (spin, reaction torque, 2 at full spin = hop, saw ×2 on c
 CALTROPS (+ the crate-C silly block), ROCKET + ION, TOW HOOK + rope (spring, both clients pull their own), FLAG /
 NUMBER PLATE / ANTENNA / HORN (synth clips), SPEED + PROXIMITY sensors with threshold → wires with amounts,
 AND/OR/NOT/NOR. Gadgets room toggle on the CREATE ROOM card. Count: 63 blocks.
+- 2026-08-22 (after the push): **"make the tire compound configurable"** → compound is a SETTING on the wheel (right-click → ROAD / SLICK / OFF-ROAD / SPIKED), wheel blocks collapse to S / M / L + caster (the 9 per-compound blocks alias-load into these). Count: 54.
+- 2026-08-22 (Adam: "driving 120, it apparently breaks at 100, but it wasn't breaking" + "aero blocks should increase the
+  speed to shear things off behind it"): **your SPEED is the wind on the track** — past the build's break point parts rip
+  off while driving (one per 0.35 s, debris tumbles back, seat gone = eject). **Air flows through the build column by
+  column:** a cell with nothing ahead takes load 1; every other part ahead in its column cuts it ×0.2 if AERO (nose /
+  wedge / curve / panel) or ×0.5 if blunt; a part's own body doesn't load itself; aero parts take half. Readout says
+  "BREAKS AT N mph (wind or your speed)".

@@ -148,31 +148,48 @@ export function drawFlow(ctx){
     if(p.suck){ ctx.beginPath(); ctx.arc(p.x, p.y, 0.25 * (1 - p.life) + 0.08, 0, 7); ctx.fillStyle = rgba(PAL.intake, 0.6 * p.life); ctx.fill(); }
   }
 }
-/* wind load per part: its cells with open air upwind (same layer), times wind² — past the
-   part's shear threshold it rips off. Returns the weakest offender (one at a time = drama). */
-export function windBreakKey(m){
-  const W = GARAGE.wind; if(W <= 0) return null;
-  const q = (W / 60) * (W / 60) * 2.9;
-  let worst = null, worstK = 0;
+/* AIR LOAD per part. The air comes from the front, column by column, layer by layer: a cell with
+   nothing ahead of it takes the full load (1); every OTHER part sitting ahead of it in its column
+   cuts what gets through — ×0.2 if that part is an AERO shape (nose / wedge / curve / panel),
+   ×0.5 if it's a blunt block. So streamlining the front raises the break speed of everything
+   behind it. A part's own body doesn't load itself (its interior cells count 0), aero parts
+   themselves take half. Load = q(W) × Σ cells; past the part's shear threshold it rips off.
+   W is whatever air you're in: the tunnel's wind, or YOUR SPEED on the track. */
+export function airLoads(m){
+  const out = new Map();
   for(const [k, p] of m.parts){
     const [i, j, l] = parseKey(k); const def = PARTS[p.type];
-    let exposed = 0;
-    for(const [ci, cj] of cellsOfPart(i, j, p.type, l, p)) if(topAt(m, ci, cj - 1) < l) exposed++;
-    if(!exposed) continue;
-    const F = q * exposed * (def.aero ? 0.5 : 1), over = F / def.shear;
+    let sum = 0;
+    for(const [ci, cj] of cellsOf(i, j, p.type, l, p)){
+      let f = 1; const seen = new Set();
+      for(let cj2 = cj - 1, n = 0; n < 40; cj2--, n++){
+        const ak = m.occ.get(keyOf(ci, cj2, l));
+        if(!ak) continue;
+        if(ak === k){ f = 0; break; }                 // my own body is ahead of this cell: interior
+        if(seen.has(ak)) continue; seen.add(ak);
+        f *= PARTS[m.parts.get(ak).type].aero ? 0.2 : 0.5;
+      }
+      sum += f;
+    }
+    if(sum > 0.001) out.set(k, sum * (def.aero ? 0.5 : 1));
+  }
+  return out;
+}
+export function windBreakKey(m, W = GARAGE.wind){
+  if(W <= 0) return null;
+  const q = (W / 60) * (W / 60) * 2.9;
+  let worst = null, worstK = 0;
+  for(const [k, load] of airLoads(m)){
+    const over = q * load / PARTS[m.parts.get(k).type].shear;
     if(over > 1 && over > worstK){ worstK = over; worst = k; }
   }
   return worst;
 }
-function* cellsOfPart(i, j, type, l, p){ yield* cellsOf(i, j, type, l, p); }
-/* wind at which THIS build's weakest exposed part lets go (for the readout) */
+/* the air speed (mph — wind OR your own speed) at which this build's weakest part lets go */
 export function breakPoint(m){
   let best = 1e9;
-  for(const [k, p] of m.parts){
-    const [i, j, l] = parseKey(k); const def = PARTS[p.type];
-    let exposed = 0; for(const [ci, cj] of cellsOfPart(i, j, p.type, l, p)) if(topAt(m, ci, cj - 1) < l) exposed++;
-    if(!exposed) continue;
-    const w = 60 * Math.sqrt(def.shear / (2.9 * exposed * (def.aero ? 0.5 : 1)));
+  for(const [k, load] of airLoads(m)){
+    const w = 60 * Math.sqrt(PARTS[m.parts.get(k).type].shear / (2.9 * load));
     if(w < best) best = w;
   }
   return best;
@@ -183,7 +200,7 @@ export function drawReadout(ctx, m){
   const pad = padOf(m); if(!pad) return;
   const bp = breakPoint(m);
   const lines = [
-    ['WIND ' + Math.round(GARAGE.wind) + ' mph  ·  [ ] to change  ·  breaks at ' + (bp < 1e8 ? Math.round(bp) + ' mph' : '—'), GARAGE.wind >= bp ? PAL.redDark : PAL.ink],
+    ['WIND ' + Math.round(GARAGE.wind) + ' mph  ·  [ ] to change  ·  BREAKS AT ' + (bp < 1e8 ? Math.round(bp) + ' mph' : '—') + ' (wind or your speed)', GARAGE.wind >= bp ? PAL.redDark : PAL.ink],
     ['MASS ' + m.mass.toFixed(1) + '  ·  LAYERS ' + m.layers + (m.highWheels ? '  ·  ' + m.highWheels + ' wheel' + (m.highWheels > 1 ? 's' : '') + ' off the ground!' : ''), PAL.ink],
     ['DRAG ' + m.cd.toFixed(3) + '  ·  X-SECTION ' + m.frontal + ' cells' + (m.streamlined ? '  ·  STREAMLINED ' + m.streamlined : '') + (m.wings ? '  ·  WINGS ' + m.wings : ''), PAL.ink],
     ['WEIGHT F/R ' + Math.round(m.balanceF * 100) + ' / ' + Math.round((1 - m.balanceF) * 100) + (m.fins ? '  ·  FINS ' + m.fins : '') + (m.freeIntakes < m.engineNeeds ? '  ·  V8/JET breathe ' + Math.round(100 * m.freeIntakes / m.engineNeeds) + '%' : '') + (m.freeIntakes && m.engines ? '  ·  intakes +' + (8 * Math.min(3, m.freeIntakes)) + '%' : '') + (m.turbos ? '  ·  TURBO ' + m.freeTurbos + '/' + m.turbos : '') + (m.solarFree || m.parts.size && [...m.parts.values()].some(p => p.type === 'solar') ? '  ·  SOLAR ' + m.solarFree : ''), m.freeIntakes < m.engineNeeds ? PAL.redDark : PAL.ink],

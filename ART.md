@@ -38,13 +38,6 @@ Any pixel size (512 px looks crisp zoomed in). Make the edges wrap. T reloads.
 - `assets/parts/panel.svg` — PANEL
 - `assets/parts/wheel1.svg` — WHEEL1
 - `assets/parts/wheel3.svg` — WHEEL3
-- `assets/parts/slick1.svg` — SLICK1
-- `assets/parts/slick3.svg` — SLICK3
-- `assets/parts/knobby1.svg` — KNOBBY1
-- `assets/parts/knobby.svg` — KNOBBY
-- `assets/parts/spike1.svg` — SPIKE1
-- `assets/parts/spike.svg` — SPIKE
-- `assets/parts/spike3.svg` — SPIKE3
 - `assets/parts/brake.svg` — BRAKE
 - `assets/parts/putt.svg` — PUTT
 - `assets/parts/jet.svg` — JET
@@ -70,3 +63,4 @@ Any pixel size (512 px looks crisp zoomed in). Make the edges wrap. T reloads.
 - `assets/parts/or.svg` — OR
 - `assets/parts/not.svg` — NOT
 - `assets/parts/nor.svg` — NOR
+- tyre compounds (optional): `assets/parts/wheel-slick.svg`, `wheel-off.svg`, `wheel-spiked.svg` (+ `wheel1-…` / `wheel3-…` for S/L); otherwise the wheel art is used for every compound

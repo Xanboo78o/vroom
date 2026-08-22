@@ -49,6 +49,14 @@ function tyre(ctx, s, color, kind){
   disc(ctx, 0, 0, s * .17, PAL.hub, LW * .8);
 }
 function gate(ctx, s, letters){ box(ctx, -s / 2, -s / 2, s, s, s * .18, PAL.gate, LW); box(ctx, -s * .38, -s * .3, s * .76, s * .6, s * .1, shade(PAL.gate, .8), 0); txt(ctx, letters, s * .3, PAL.paper, s * .02); disc(ctx, 0, -s * .42, s * .07, PAL.wire, 0); disc(ctx, 0, s * .42, s * .07, PAL.wire, 0); }
+/* tyre compounds — a SETTING on every wheel (right-click it), not separate blocks */
+export const COMPOUNDS = {
+  road:   { label: 'ROAD',     road: 1,    off: 1,    color: PAL.wheel },
+  slick:  { label: 'SLICK',    road: 1.3,  off: 0.55, color: PAL.slick },
+  off:    { label: 'OFF-ROAD', road: 0.9,  off: 1.6,  color: PAL.knobby },
+  spiked: { label: 'SPIKED',   road: 0.75, off: 1.45, color: PAL.spike, spiked: true },
+};
+export const compoundOf = p => (p && p.cfg && COMPOUNDS[p.cfg.compound]) ? p.cfg.compound : 'road';
 const DRAW = {
   frame(ctx, s){ box(ctx, -s / 2, -s / 2, s, s, s * .22, PAL.frame, LW); stud(ctx, s, PAL.frame); },
   seat(ctx, s){
@@ -56,11 +64,7 @@ const DRAW = {
     box(ctx, -s * .34, -s * .34, s * .68, s * .5, s * .12, tint(PAL.seat, .3), 0);        // cushion
     box(ctx, -s * .4, s * .16, s * .8, s * .26, s * .1, shade(PAL.seat, .85), 0);       // backrest (back = down)
   },
-  wheel(ctx, s){ tyre(ctx, s, PAL.wheel, 'road'); },
-  slick(ctx, s){ tyre(ctx, s, PAL.slick, 'slick'); },
-  knobby(ctx, s){ tyre(ctx, s, PAL.knobby, 'knobby'); },
-  monster(ctx, s){ box(ctx, -s * .44, -s / 2, s * .88, s, s * .3, PAL.monster, LW); ctx.fillStyle = hex(tint(PAL.monster, .25)); for(let i = 0; i < 5; i++){ rrect(ctx, -s * .34, -s * .4 + i * s * .18, s * .68, s * .09, s * .04); ctx.fill(); } disc(ctx, 0, 0, s * .16, PAL.hub, LW * .8); },
-  spike(ctx, s){ tyre(ctx, s, PAL.spike, 'spike'); },
+  wheel(ctx, s, spin, on, inst){ const c = compoundOf(inst && inst.p); tyre(ctx, s, COMPOUNDS[c].color, c === 'off' ? 'knobby' : c === 'spiked' ? 'spike' : c); },
   caster(ctx, s){ disc(ctx, 0, 0, s * .42, PAL.caster, LW); disc(ctx, 0, 0, s * .16, PAL.hub, 0.02); },
   brake(ctx, s){ disc(ctx, 0, 0, s * .44, PAL.brake, LW); disc(ctx, 0, 0, s * .3, shade(PAL.brake, .75), 0); box(ctx, -s * .14, -s * .46, s * .28, s * .34, s * .06, PAL.ink, 0.02); disc(ctx, 0, 0, s * .1, PAL.hub, 0); },
   engine(ctx, s){
@@ -164,19 +168,10 @@ export const PARTS = {
   panel:   { label: 'PANEL',  key: '', cat: 'body',     fp: [1, 1], mass: 0.15, color: PAL.panel,   shear: 30, art: 'panel',  draw: DRAW.panel, custom: true, panel: true, aero: 'panel', noContour: true, tip: 'draw your own shape. paint it. hide the engine.' },
   // ---- seats ----
   seat:    { label: 'SEAT',   key: '4', cat: 'seat',     fp: [2, 2], mass: 0.8, color: PAL.seat,    shear: 34, art: 'seat',   draw: DRAW.seat },
-  // ---- wheels: 3 sizes × 4 compounds (+ caster) ----
-  wheel1:  { label: 'WHEEL S', key: '', cat: 'wheel',  fp: [1, 1], mass: 0.35, color: PAL.wheel,   shear: 14, art: 'wheel1',  alt: 'wheel', draw: DRAW.wheel, wheel: { road: 1, off: 1, steer: true, k: 0.8 } },
-  wheel:   { label: 'WHEEL',  key: '5', cat: 'wheel',    fp: [2, 2], mass: 0.9, color: PAL.wheel,   shear: 16, art: 'wheel',  draw: DRAW.wheel, wheel: { road: 1, off: 1, steer: true, k: 1 } },   // pops off easiest
-  wheel3:  { label: 'WHEEL L', key: '', cat: 'wheel',  fp: [3, 3], mass: 1.9, color: PAL.wheel,   shear: 20, art: 'wheel3',  alt: 'wheel', draw: DRAW.wheel, wheel: { road: 1, off: 1, steer: true, k: 1.2 } },
-  slick1:  { label: 'SLICK S', key: '', cat: 'wheel',  fp: [1, 1], mass: 0.3,  color: PAL.slick,   shear: 14, art: 'slick1',  alt: 'slick', draw: DRAW.slick, wheel: { road: 1.3, off: 0.55, steer: true, k: 0.8 } },
-  slick:   { label: 'SLICK',   key: '', cat: 'wheel',    fp: [2, 2], mass: 0.8,  color: PAL.slick,   shear: 16, art: 'slick',   draw: DRAW.slick, wheel: { road: 1.3, off: 0.55, steer: true, k: 1 }, tip: 'asphalt: yes. grass: no.' },
-  slick3:  { label: 'SLICK L', key: '', cat: 'wheel',  fp: [3, 3], mass: 1.8,  color: PAL.slick,   shear: 20, art: 'slick3',  alt: 'slick', draw: DRAW.slick, wheel: { road: 1.3, off: 0.55, steer: true, k: 1.2 } },
-  knobby1: { label: 'OFF-ROAD S', key: '', cat: 'wheel', fp: [1, 1], mass: 0.4, color: PAL.knobby, shear: 14, art: 'knobby1', alt: 'knobby', draw: DRAW.knobby, wheel: { road: 0.9, off: 1.6, steer: true, k: 0.8 } },
-  knobby:  { label: 'OFF-ROAD', key: '', cat: 'wheel',  fp: [2, 2], mass: 1.0,  color: PAL.knobby,  shear: 16, art: 'knobby',  draw: DRAW.knobby, wheel: { road: 0.9, off: 1.6, steer: true, k: 1 } },
-  monster: { label: 'MONSTER', key: '', cat: 'wheel',    fp: [3, 3], mass: 2.2,  color: PAL.monster, shear: 26, art: 'monster', draw: DRAW.monster, wheel: { road: 0.9, off: 1.6, steer: true, k: 1.2 }, tip: 'grass, gravel, sand, your friend' },
-  spike1:  { label: 'SPIKED S', key: '', cat: 'wheel', fp: [1, 1], mass: 0.4,  color: PAL.spike,   shear: 14, art: 'spike1',  alt: 'spike', draw: DRAW.spike, wheel: { road: 0.75, off: 1.45, steer: true, k: 0.8, spiked: true } },
-  spike:   { label: 'SPIKED',  key: '', cat: 'wheel',    fp: [2, 2], mass: 1.0,  color: PAL.spike,   shear: 16, art: 'spike',   draw: DRAW.spike, wheel: { road: 0.75, off: 1.45, steer: true, k: 1, spiked: true }, tip: 'bites grass + ice, eats asphalt' },
-  spike3:  { label: 'SPIKED L', key: '', cat: 'wheel', fp: [3, 3], mass: 2.1,  color: PAL.spike,   shear: 20, art: 'spike3',  alt: 'spike', draw: DRAW.spike, wheel: { road: 0.75, off: 1.45, steer: true, k: 1.2, spiked: true } },
+  // ---- wheels: 3 sizes (+ caster); the COMPOUND is a setting on the wheel — right-click it ----
+  wheel1:  { label: 'WHEEL S', key: '', cat: 'wheel',  fp: [1, 1], mass: 0.35, color: PAL.wheel,   shear: 14, art: 'wheel1',  alt: 'wheel', draw: DRAW.wheel, wheel: { steer: true, k: 0.8 }, compound: true, tip: 'right-click: road / slick / off-road / spiked' },
+  wheel:   { label: 'WHEEL',  key: '5', cat: 'wheel',    fp: [2, 2], mass: 0.9, color: PAL.wheel,   shear: 16, art: 'wheel',  draw: DRAW.wheel, wheel: { steer: true, k: 1 }, compound: true, tip: 'right-click: road / slick / off-road / spiked' },   // pops off easiest
+  wheel3:  { label: 'WHEEL L', key: '', cat: 'wheel',  fp: [3, 3], mass: 1.9, color: PAL.wheel,   shear: 20, art: 'wheel3',  alt: 'wheel', draw: DRAW.wheel, wheel: { steer: true, k: 1.2 }, compound: true, tip: 'right-click: road / slick / off-road / spiked' },
   caster:  { label: 'CASTER',  key: '', cat: 'wheel',    fp: [1, 1], mass: 0.25, color: PAL.caster,  shear: 14, art: 'caster',  draw: DRAW.caster, wheel: { road: 0.7, off: 0.5, steer: false, k: 0.7 }, tip: 'shopping cart energy' },
   brake:   { label: 'BRAKE',   key: '', cat: 'wheel',    fp: [1, 1], mass: 0.4,  color: PAL.brake,   shear: 24, art: 'brake',   draw: DRAW.brake, brake: true, bind: 'Space', amount: 1, tip: 'pick its wheels · 100% = handbrake slide' },
   // ---- engine ----
@@ -232,7 +227,7 @@ export const PARTS = {
 export const PART_ORDER = [
   'frame1', 'frame', 'frame3', 'lead', 'foam', 'plate', 'bumper',
   'panel', 'seat',
-  'wheel1', 'wheel', 'wheel3', 'slick1', 'slick', 'slick3', 'knobby1', 'knobby', 'monster', 'spike1', 'spike', 'spike3', 'caster', 'brake',
+  'wheel1', 'wheel', 'wheel3', 'caster', 'brake',
   'putt', 'engine', 'v8', 'jet', 'turbo', 'tank', 'jerry', 'intake',
   'battery', 'bigbatt', 'motor', 'fan', 'solar',
   'rocket', 'ion',
@@ -243,6 +238,8 @@ export const PART_ORDER = [
   'flag', 'numplate', 'antenna', 'horn',
   'sensespeed', 'senseprox', 'and', 'or', 'not', 'nor',
 ];
+/* the old per-compound wheel blocks (one commit's worth) load as a sized wheel + a compound setting */
+export const ALIASES = { slick1: ['wheel1', 'slick'], slick: ['wheel', 'slick'], slick3: ['wheel3', 'slick'], knobby1: ['wheel1', 'off'], knobby: ['wheel', 'off'], monster: ['wheel3', 'off'], spike1: ['wheel1', 'spiked'], spike: ['wheel', 'spiked'], spike3: ['wheel3', 'spiked'] };
 /* is this part something a key / a wire can drive? */
 export function isDrivable(def){ return !!(def.bind || def.engine || def.motor || def.gadget || def.thrust || def.piston || def.rotor || def.brake || def.horn || def.hook || def.gate); }
 
@@ -303,12 +300,14 @@ export function drawPart(ctx, type, rot = 0, zoom = 40, alpha = 1, spin = 0, ste
   if(!def.noContour){ rrect(ctx, -w / 2 + 0.01, -d / 2 + 0.01, w - 0.02, d - 0.02, 0.06);
     ctx.lineWidth = 0.05; ctx.strokeStyle = hex(shade(def.color, .55)); if(alpha < 1) ctx.globalAlpha *= alpha; ctx.stroke(); if(alpha < 1) ctx.globalAlpha /= alpha; }
   let key = 'parts/' + def.art;
+  if(def.compound){ const c = compoundOf(p); if(c !== 'road'){ const legacy = c === 'slick' ? 'slick' : (c === 'off' && type === 'wheel3') ? 'monster' : null;   // wheel-slick.svg etc. if Adam drew them (old slick/monster placeholders fill in)
+    if(hasArt(key + '-' + c)) key += '-' + c; else if(def.alt && hasArt('parts/' + def.alt + '-' + c)) key = 'parts/' + def.alt + '-' + c; else if(legacy && hasArt('parts/' + legacy)) key = 'parts/' + legacy; } }
   if(!hasArt(key) && def.alt) key = 'parts/' + def.alt;
   const on = inst && inst.on ? inst.on : 0;
   if(!art(ctx, key, w, d, zoom, alpha) || on > 0){
     if(alpha < 1) ctx.globalAlpha *= alpha;
     if(hasArt(key)){ /* art drew the body; add live bits only */ if(def.thrust || (def.engine && def.engine.jet)) drawFlame(ctx, Math.max(w, d), on); }
-    else def.draw(ctx, Math.max(w, d), def.flag ? (inst && inst.t || 0) : spin, on);
+    else def.draw(ctx, Math.max(w, d), def.flag ? (inst && inst.t || 0) : spin, on, inst);
   }
   // live text (number plate)
   if(def.text){ const s = inst && inst.text != null ? String(inst.text) : (p && p.cfg && p.cfg.text) || ''; if(s){ if(alpha < 1) ctx.globalAlpha *= alpha; ctx.fillStyle = hex(PAL.ink); ctx.font = `900 ${Math.min(0.2, 0.5 / Math.max(2, s.length))}px Impact, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(s.slice(0, 8), 0, 0.01); } }

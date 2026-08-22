@@ -117,3 +117,5 @@ body.playing, body.playing * { cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D
 #cfg .sw { display: flex; gap: 4px; flex-wrap: wrap; }
 #cfg .sw i { width: 18px; height: 18px; border-radius: 6px; border: 2px solid #00000020; display: inline-block; cursor: pointer !important; }
 #cfg .sw i.on { border-color: var(--k-ink, #4b4638); transform: scale(1.15); }
+#cfg .opts { display: flex; gap: 4px; flex-wrap: wrap; }
+#cfg .opts button { padding: 3px 7px; font-size: 11px; }

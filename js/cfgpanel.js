@@ -6,7 +6,7 @@
    threshold + direction, OUTPUT wires (click a block, set the amount), text,
    paint. Right-click on EMPTY space still opens the parts ring.
    ============================================================================= */
-import { PARTS, isDrivable } from './parts.js';
+import { PARTS, isDrivable, COMPOUNDS } from './parts.js';
 import { cfgOf } from './machine.js';
 import { PAL, hex } from './palette.js';
 
@@ -32,6 +32,8 @@ export function makeCfgPanel({ onChange, onDelete, partName }){
     const keyBtn = (field, label) => `<div class="row"><span>${label}</span><button class="key ${S.wait === field ? 'wait' : ''}" data-act="key" data-f="${field}">${S.wait === field ? 'press a key…' : keyName(c[field])}</button></div>`;
     if(def.engine || def.motor){ h += keyBtn('fwd', 'FORWARD'); h += keyBtn('rev', 'REVERSE'); }
     else if(def.bind || def.brake) h += keyBtn('bind', 'KEY');
+    if(def.compound) h += `<div class="row"><span>COMPOUND</span><span class="opts">${Object.entries(COMPOUNDS).map(([id, cp]) => `<button class="${c.compound === id ? 'on' : ''}" data-act="compound" data-c="${id}">${cp.label}</button>`).join('')}</span></div>
+      <div class="muted" style="margin:0 0 4px 82px">${{ road: 'the all-rounder', slick: 'asphalt ×1.3 · grass ×0.55', off: 'grass/gravel/sand ×1.6 · asphalt ×0.9', spiked: 'bites grass + ice ×1.45 · eats asphalt ×0.75' }[c.compound]}</div>`;
     if(def.brake) h += slider('HARSHNESS', 'amount', Math.round(c.amount * 100), 10, 100, '%');
     if(def.rotor) h += slider('SPEED', 'amount', Math.round(c.amount * 100), 20, 100, '%');
     if(def.engine && !def.engine.jet || def.motor || def.brake) h += wheelsUI(c);
@@ -78,6 +80,7 @@ export function makeCfgPanel({ onChange, onDelete, partName }){
     else if(act === 'unwire'){ const c = cfg(); c.out = (c.out || []).filter((_, i) => i !== +b.dataset.i); changed(); }
     else if(act === 'op'){ const c = cfg(); c.op = cfgOf(part()).op === '>' ? '<' : '>'; changed(); }
     else if(act === 'color'){ cfg().color = +b.dataset.c; changed(); }
+    else if(act === 'compound'){ cfg().compound = b.dataset.c; changed(); }
     else if(act === 'del'){ const k = S.k; close(); if(onDelete) onDelete(k); }
   });
   root.addEventListener('input', e => {

@@ -12,7 +12,7 @@
    m.act = Map(partKey -> amount) — what the driver's keys / the logic wires are
    asking each block to do THIS frame (main.js fills it).
    ============================================================================= */
-import { PARTS, CELL, fpOf, localCenterOf, facingDir, cellsOf, keyOf, parseKey, drawPart, massOf } from './parts.js';
+import { PARTS, CELL, fpOf, localCenterOf, facingDir, cellsOf, keyOf, parseKey, drawPart, massOf, COMPOUNDS, compoundOf, ALIASES } from './parts.js';
 import { PAL, rgba, shade, hex } from './palette.js';
 import { shadow, rrect } from './draw.js';
 
@@ -88,12 +88,14 @@ export function starterLayout(){
 export function serializeParts(m){ return [...m.parts.entries()].map(([k, p]) => p.cfg ? [k, p.type, p.rot, p.cfg] : [k, p.type, p.rot]); }
 export function loadParts(m, arr){
   m.parts.clear();
-  for(const [k, type, rot, cfg] of arr){ if(!PARTS[type]) continue; const [i, j, l] = parseKey(k); const p = { type, rot: rot | 0 }; if(cfg) p.cfg = cfg; m.parts.set(key(i, j, l), p); }
+  for(let [k, type, rot, cfg] of arr){
+    if(ALIASES[type]){ const [t2, comp] = ALIASES[type]; type = t2; cfg = { ...(cfg || {}), compound: comp }; }
+    if(!PARTS[type]) continue; const [i, j, l] = parseKey(k); const p = { type, rot: rot | 0 }; if(cfg) p.cfg = cfg; m.parts.set(key(i, j, l), p); }
   refresh(m);
 }
 /* the config of a placed part, with the def's defaults underneath */
 export function cfgOf(p){ const def = PARTS[p.type]; const c = p.cfg || {}; return {
-  bind: c.bind ?? def.bind ?? null, fwd: c.fwd ?? 'KeyW', rev: c.rev ?? 'KeyS', amount: c.amount ?? def.amount ?? 1,
+  bind: c.bind ?? def.bind ?? null, fwd: c.fwd ?? 'KeyW', rev: c.rev ?? 'KeyS', amount: c.amount ?? def.amount ?? 1, compound: compoundOf(p),
   wheels: c.wheels || null, out: c.out || [], thr: c.thr ?? def.thr ?? 0, op: c.op ?? def.op ?? '>', text: c.text ?? '', color: c.color ?? null, clip: c.clip ?? 'honk' }; }
 
 export function refresh(m){
@@ -142,7 +144,7 @@ export function refresh(m){
     if(p.type === 'fan') fans++;
     if(def.turbo) turbos++;
     if(def.fin) fins++;
-    if(def.wheel){ if(l === 0) m.wheels.push({ k, p, lx: c.x, ly: c.y, steer: false, spin: 0, load: 0, road: def.wheel.road, off: def.wheel.off, canSteer: def.wheel.steer, gk: def.wheel.k || 1, spiked: !!def.wheel.spiked, drive: 0, brake: 0, seg: 0 }); else highWheels++; }
+    if(def.wheel){ const comp = def.compound ? COMPOUNDS[compoundOf(p)] : def.wheel; if(l === 0) m.wheels.push({ k, p, lx: c.x, ly: c.y, steer: false, spin: 0, load: 0, road: comp.road, off: comp.off, canSteer: def.wheel.steer, gk: def.wheel.k || 1, spiked: !!comp.spiked, compound: def.compound ? compoundOf(p) : null, drive: 0, brake: 0, seg: 0 }); else highWheels++; }
   }
   if(m.parts.size === 0){ m.mass = 1; m.segs = []; return; }
   // breathing check needs the finished occupancy: every cell one step ahead of the

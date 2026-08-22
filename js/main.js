@@ -52,7 +52,7 @@ function boot(){
   onResize(); addEventListener('resize', onResize);
   buildWorld(); WORLD.slipAt = slipAt;
   wireInput(); wireMenu(); wireNet();
-  G.cfg = makeCfgPanel({ onChange: () => {}, onDelete: k => removePart(k), partName: () => G.me ? G.me.name : '' });
+  G.cfg = makeCfgPanel({ onChange: m => { const c0 = { ...m.center }; refresh(m); anchorFix(m, c0); }, onDelete: k => removePart(k), partName: () => G.me ? G.me.name : '' });
   window.KR.dbg = { serializeParts, loadParts, onImpact, sendBuilds, teleportTo, toggleBuild, placePart, removePart, selectPart, actionSeat, actionGrab, actionRepair, exitBuild, closePoly, openCfg, GAD, buildAct, cfgOf, makeMachine, starterLayout, refresh, snapshotBlue, restock };
   probeLogo(); loadArt();
   requestAnimationFrame(loop);
@@ -699,21 +699,27 @@ function stepPunches(){
 /* a caltrop got one of my wheels */
 function onFlat(m, wh, c){ burst(c.x, c.y, 6, PAL.caltrop, 3, 0.08); if(!G.solo) NET.send('pop', { id: c.id }); if(m.driver === myPid()) toast('FLAT TYRE — Q / pit fixes it'); }
 
-/* too much wind for a part → it rips off and blows down the tunnel (one part every 0.35 s) */
-function windStress(m, dt){
-  G.windT = (G.windT || 0) - dt; if(G.windT > 0) return;
-  const k = windBreakKey(m); if(!k || m.parts.size <= 1) return;
-  G.windT = 0.35;
+/* too much AIR for a part → it rips off (one part every 0.35 s = drama). In the tunnel the air is
+   the wind; on the track the air is YOUR SPEED — the readout's break point is real either way. */
+function airStress(m, dt, W, driving){
+  m.windT = (m.windT || 0) - dt; if(m.windT > 0) return;
+  if(!driving && G.mode !== 'build') return;
+  const k = windBreakKey(m, W); if(!k || m.parts.size <= 1) return;
+  m.windT = 0.35;
   const c0 = { ...m.center };
   const gone = removePartKeys(m, [k]); anchorFix(m, c0);
+  const bx = Math.sin(m.a), by = -Math.cos(m.a);   // forward; debris tumbles backwards
   for(const g of gone){
     const wp = cellWorld(m, g.k); const [, , l] = parseKey(g.k);
-    const db = { did: myPid() + ':' + (G.debrisN++), type: g.p.type, rot: g.p.rot, p: [wp.x, wp.y], z: 0.3 + l * 0.3,
-      v: [rnd(2), 4 + GARAGE.wind * 0.12], vz: 3 + rnd(2), ang: m.a, home: { mid: m.id, k: g.k } };
+    const db = { did: myPid() + ':' + (G.debrisN++), type: g.p.type, rot: g.p.rot, p: [wp.x, wp.y], z: m.z + 0.3 + l * 0.3,
+      v: driving ? [m.vx * 0.6 - bx * 3 + rnd(3), m.vy * 0.6 - by * 3 + rnd(3)] : [rnd(2), 4 + W * 0.12], vz: 3 + rnd(2), ang: m.a, home: { mid: m.id, k: g.k } };
     spawnDebris(db); burst(wp.x, wp.y, 6, PARTS[g.p.type].color, 3, 0.08);
     if(!G.solo) NET.send('shear', { mid: m.id, cells: [[g.k]], debris: [db] });
   }
-  toast('WIND ripped off ' + gone.map(g => PARTS[g.p.type].label).join(', '));
+  if(driving && G.me.inMachine === m.id) G.shake = Math.min(1, G.shake + 0.35);
+  toast((driving ? 'AIR at ' + Math.round(W) + ' mph ripped off ' : 'WIND ripped off ') + gone.map(g => PARTS[g.p.type].label).join(', '));
+  // seat gone → YEET (same as a crash)
+  if(G.me.inMachine === m.id && !m.seatKey){ eject(G.me, m.x, m.y, m.z + 0.5); m.driver = null; if(!G.solo) NET.send('seat', { mid: m.id, driver: null }); toast('EJECTED!!'); }
 }
 
 /* ---- laps: whichever track's start line you cross owns the timer ------------- */
@@ -900,7 +906,9 @@ function loop(t){
       if(drv.fuel > before) pitFlash(t);
     }
   }
-  if(G.mode === 'build'){ buildHover(); const bm = G.machines.get(G.buildTarget); if(bm){ stepFlow(dt, bm); windStress(bm, dt); } }
+  if(G.mode === 'build'){ buildHover(); const bm = G.machines.get(G.buildTarget); if(bm){ stepFlow(dt, bm); airStress(bm, dt, GARAGE.wind, false); } }
+  // on the track your speed IS the wind: past the build's break point, parts start ripping off
+  for(const m of G.machines.values()){ if(m.editing || m.remote || simOwner(m) !== myPid() || m.grace > 0) continue; const mph = Math.hypot(m.vx, m.vy) * 3.1; if(mph > 40) airStress(m, dt, mph, true); }
 
   camera(dt, drv);
   render(ts);

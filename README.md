@@ -45,7 +45,7 @@ If the hook is missing (fresh clone): `sed -i -E "s/\?v=[0-9]+/?v=$(date +%s)/g"
 When you add a js module, add it to the importmap in index.html too, or it'll be the one stale file.
 
 
-## UPDATE 2 — THE BLOCKS FLOOD (2026-08-22): 28 → 63 blocks, one push
+## UPDATE 2 — THE BLOCKS FLOOD (2026-08-22): 28 → 54 blocks, one push (+ compounds as a wheel setting)
 Locked in 5 "card packs" (DESIGN.md → BLOCKS PACKS). Every block hooks a real system.
 
 **Garage rules (new):** right-click EMPTY = the catalog ring · right-click a BLOCK = its config card
@@ -58,7 +58,7 @@ it HIDES your build from everyone else (the owner sees through it in the garage)
 **Catalog (13 rings):**
 - FRAMES 1×1/2×2/3×3 · LEAD (heavy) · FOAM (light, fragile) · PLATE (armour) · BUMPER (soaks half a hit)
 - BODY: PANEL (free-draw skin)
-- WHEELS: 3 sizes × road / SLICK / OFF-ROAD / SPIKED (S, M, L) + CASTER + BRAKE (per-wheel, harshness; 100 % = handbrake slide, default Space)
+- WHEELS: WHEEL S / M / L + CASTER + BRAKE (per-wheel, harshness; 100 % = handbrake slide, default Space). **Compound is a setting on the wheel** (right-click it): ROAD · SLICK (asphalt ×1.3, grass ×0.55) · OFF-ROAD (dirt ×1.6, asphalt ×0.9) · SPIKED (grass/ice ×1.45, asphalt ×0.75) — the tyre redraws to match
 - ENGINE: PUTT (1×1) · ENGINE · V8 (needs 1 intake) · JET (3×3: thrust from where it sits, spools up, needs 1 intake, works mid-air) · TURBO · FUEL · JERRYCAN ("do NOT shake") · INTAKE (every engine likes one, +8 % each)
 - ELECTRIC: BATT · BIG BATT · MOTOR · FAN · SOLAR
 - THRUST: ROCKET (fuel, R) · ION (battery, R) — facing blocks, sideways = drift control, mid-air too
@@ -72,4 +72,5 @@ it HIDES your build from everyone else (the owner sees through it in the garage)
 **Engines + brakes pick their wheels** (config card → "pick wheels", click up to 4 on your build; default = all).
 Default binds: W/S engines + motors · Space brake · R thrusters · F piston · G rotor · 1/2/3/4 gadgets · C hook · H horn — all rebindable per block.
 Pit lane / garage / Q also restock gadget ammo and fix flats. Net: builds carry configs; drops, ropes, punches, flames, trailer angles sync.
-Art slots for all 35 new blocks are listed in ART.md (code fallbacks draw them until Adam does).
+**Your speed is the wind:** the tunnel's BREAKS AT number is real on the track — go past it and parts rip off (one at a time). Air flows through the build column by column: an AERO front lets ×0.2 through to the blocks behind it, a blunt block ×0.5 — streamline the front and the back survives faster.
+Art slots for all new blocks are listed in ART.md (code fallbacks draw them until Adam does).
