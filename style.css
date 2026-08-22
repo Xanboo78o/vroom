@@ -87,3 +87,33 @@ body.playing, body.playing * { cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D
   font-size: 11px; font-weight: 800; letter-spacing: 1px; fill: var(--k-text, #5a5546); pointer-events: none;
 }
 #logoImg { max-width: 100%; max-height: 90px; display: block; margin: 0 auto; }
+
+/* ---------- the block config card (right-click a block in the garage) ---------- */
+#cfg {
+  position: fixed; right: 14px; top: 50%; transform: translateY(-50%); width: 270px; z-index: 40;
+  background: var(--k-cream, #fbf6e9); border: 3px solid var(--k-border, #e3dccb); border-radius: 18px; padding: 12px 14px;
+  font-size: 13px; font-weight: 700; color: var(--k-text, #5a5546); box-shadow: 0 6px 0 var(--k-cardShadow, #a9cfe0), 0 12px 30px #00000030;
+  max-height: 80vh; overflow-y: auto; cursor: default !important;
+}
+#cfg, #cfg * { cursor: default !important; }
+#cfg button, #cfg select, #cfg input { cursor: pointer !important; font: inherit; }
+#cfg .cfgHead { display: flex; justify-content: space-between; align-items: center; font-size: 17px; letter-spacing: 1px; color: var(--k-red, #f26d65); margin-bottom: 4px; }
+#cfg .tip { font-size: 11px; color: var(--k-mute, #958f7e); margin-bottom: 8px; font-weight: 600; }
+#cfg .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+#cfg .row > span:first-child { min-width: 74px; font-size: 11px; letter-spacing: 1px; color: var(--k-mute, #958f7e); }
+#cfg .row.end { justify-content: space-between; margin-top: 12px; }
+#cfg .row.out > span:first-child { min-width: 0; flex: 1; color: var(--k-text, #5a5546); }
+#cfg .muted { color: var(--k-mute, #958f7e); font-size: 11px; }
+#cfg button { padding: 5px 10px; border-radius: 10px; border: 2px solid var(--k-border, #e3dccb); background: var(--k-paper, #fffdf6); color: var(--k-text, #5a5546); font-weight: 800; }
+#cfg button.on, #cfg button.key.wait { background: var(--k-blue, #6fb4e8); color: #fff; border-color: var(--k-blueDark, #4a8fc7); }
+#cfg button.key { min-width: 54px; letter-spacing: 1px; }
+#cfg button.x { padding: 2px 8px; font-size: 14px; line-height: 1; }
+#cfg button.del { background: var(--k-red, #f26d65); color: #fff; border-color: var(--k-redDark, #d4524b); }
+#cfg input[type=range] { flex: 1; min-width: 70px; accent-color: var(--k-blue, #6fb4e8); }
+#cfg input[type=number], #cfg input[type=text], #cfg select { padding: 4px 8px; border-radius: 8px; border: 2px solid var(--k-border, #e3dccb); background: var(--k-paper, #fffdf6); color: var(--k-text, #5a5546); width: 76px; font-weight: 700; }
+#cfg input[type=text] { width: 130px; }
+#cfg .state { font-size: 11px; letter-spacing: 1px; color: var(--k-mute, #958f7e); margin: 2px 0 2px 82px; }
+#cfg .state.on { color: var(--k-batt, #5fd0b4); }
+#cfg .sw { display: flex; gap: 4px; flex-wrap: wrap; }
+#cfg .sw i { width: 18px; height: 18px; border-radius: 6px; border: 2px solid #00000020; display: inline-block; cursor: pointer !important; }
+#cfg .sw i.on { border-color: var(--k-ink, #4b4638); transform: scale(1.15); }

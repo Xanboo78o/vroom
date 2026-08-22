@@ -12,7 +12,7 @@ import { box, disc, rrect, blob, label, shadow } from './draw.js';
 import { SURF, paintSurface, catmull } from './tracks.js';
 import { pat } from './tiles.js';
 import { worldToLocal, localToWorld, topAt } from './machine.js';
-import { CELL, keyOf, parseKey, PARTS, facingDir } from './parts.js';
+import { CELL, keyOf, parseKey, PARTS, facingDir, cellsOf } from './parts.js';
 
 export const GARAGE = {
   x: -330, y: 420,
@@ -130,8 +130,8 @@ export function stepFlow(dt, m){
       if(breathes && Math.abs(L.y / CELL - (parseKey(ak)[1] - 0.5)) < 1.2){ p.suck = true; p.vx = p.vy = 0; continue; }
       const aero = part && PARTS[part.type].aero;
       let side = L.x < m.com.x ? -1 : 1;
-      if(aero){ const [pi] = parseKey(ak); const cx = (pi + 0.5) * CELL;     // slide along the slope: wedge/curve rot 0 sheds right, rot 3 sheds left, nose splits at its point
-        side = aero === 'nose' ? (L.x < cx ? -1 : 1) : part.rot === 0 ? 1 : part.rot === 3 ? -1 : (L.x < cx ? -1 : 1); }
+      if(aero){ const cx = part.lx != null ? part.lx : (parseKey(ak)[0] + 0.5) * CELL;     // slide along the slope: wedge/curve rot 0 sheds right, rot 3 sheds left, nose/panel split at their middle
+        side = aero === 'nose' || aero === 'panel' || aero === 'banana' ? (L.x < cx ? -1 : 1) : part.rot === 0 ? 1 : part.rot === 3 ? -1 : (L.x < cx ? -1 : 1); }
       p.vx += side * (aero ? 34 + W * 0.3 : 22 + W * 0.25 + (top - p.l) * 8) * dt; p.vy = Math.max(2.5, p.vy - (aero ? 4 : 14 + W * 0.2) * dt);
     } else { p.vx *= Math.pow(0.05, dt); p.vy += (vy0 - p.vy) * Math.min(1, dt * 3); }
     p.x += p.vx * dt; p.y += p.vy * dt;
@@ -157,20 +157,20 @@ export function windBreakKey(m){
   for(const [k, p] of m.parts){
     const [i, j, l] = parseKey(k); const def = PARTS[p.type];
     let exposed = 0;
-    for(const [ci, cj] of cellsOfPart(i, j, p.type, l)) if(topAt(m, ci, cj - 1) < l) exposed++;
+    for(const [ci, cj] of cellsOfPart(i, j, p.type, l, p)) if(topAt(m, ci, cj - 1) < l) exposed++;
     if(!exposed) continue;
     const F = q * exposed * (def.aero ? 0.5 : 1), over = F / def.shear;
     if(over > 1 && over > worstK){ worstK = over; worst = k; }
   }
   return worst;
 }
-function* cellsOfPart(i, j, type, l){ const [w, d] = PARTS[type].fp || [2, 2]; for(let a = 0; a < w; a++) for(let b = 0; b < d; b++) yield [i + a, j + b, l]; }
+function* cellsOfPart(i, j, type, l, p){ yield* cellsOf(i, j, type, l, p); }
 /* wind at which THIS build's weakest exposed part lets go (for the readout) */
 export function breakPoint(m){
   let best = 1e9;
   for(const [k, p] of m.parts){
     const [i, j, l] = parseKey(k); const def = PARTS[p.type];
-    let exposed = 0; for(const [ci, cj] of cellsOfPart(i, j, p.type, l)) if(topAt(m, ci, cj - 1) < l) exposed++;
+    let exposed = 0; for(const [ci, cj] of cellsOfPart(i, j, p.type, l, p)) if(topAt(m, ci, cj - 1) < l) exposed++;
     if(!exposed) continue;
     const w = 60 * Math.sqrt(def.shear / (2.9 * exposed * (def.aero ? 0.5 : 1)));
     if(w < best) best = w;
@@ -186,9 +186,10 @@ export function drawReadout(ctx, m){
     ['WIND ' + Math.round(GARAGE.wind) + ' mph  ·  [ ] to change  ·  breaks at ' + (bp < 1e8 ? Math.round(bp) + ' mph' : '—'), GARAGE.wind >= bp ? PAL.redDark : PAL.ink],
     ['MASS ' + m.mass.toFixed(1) + '  ·  LAYERS ' + m.layers + (m.highWheels ? '  ·  ' + m.highWheels + ' wheel' + (m.highWheels > 1 ? 's' : '') + ' off the ground!' : ''), PAL.ink],
     ['DRAG ' + m.cd.toFixed(3) + '  ·  X-SECTION ' + m.frontal + ' cells' + (m.streamlined ? '  ·  STREAMLINED ' + m.streamlined : '') + (m.wings ? '  ·  WINGS ' + m.wings : ''), PAL.ink],
-    ['WEIGHT F/R ' + Math.round(m.balanceF * 100) + ' / ' + Math.round((1 - m.balanceF) * 100) + (m.freeIntakes < m.engines ? '  ·  an engine can\'t breathe' : ''), m.freeIntakes < m.engines ? PAL.redDark : PAL.ink],
+    ['WEIGHT F/R ' + Math.round(m.balanceF * 100) + ' / ' + Math.round((1 - m.balanceF) * 100) + (m.fins ? '  ·  FINS ' + m.fins : '') + (m.freeIntakes < m.engineNeeds ? '  ·  V8/JET breathe ' + Math.round(100 * m.freeIntakes / m.engineNeeds) + '%' : '') + (m.freeIntakes && m.engines ? '  ·  intakes +' + (8 * Math.min(3, m.freeIntakes)) + '%' : '') + (m.turbos ? '  ·  TURBO ' + m.freeTurbos + '/' + m.turbos : '') + (m.solarFree || m.parts.size && [...m.parts.values()].some(p => p.type === 'solar') ? '  ·  SOLAR ' + m.solarFree : ''), m.freeIntakes < m.engineNeeds ? PAL.redDark : PAL.ink],
+    ['POWER ' + (m.enginePower ? 'eng ' + m.enginePower.toFixed(1) : '') + (m.jets ? '  ·  JET ' + m.jets : '') + (m.motors ? '  ·  motors ' + m.motors : '') + (m.thrusters.length ? '  ·  THRUST ' + m.thrusters.length : '') + (m.brakes.length ? '  ·  BRAKES ' + m.brakes.length : '  ·  NO BRAKES') + (m.segs.length > 1 ? '  ·  HINGED ×' + (m.segs.length - 1) : '') + (m.panels ? '  ·  PANELS ' + m.panels : '') + '  ·  right-click a block to configure', m.brakes.length ? PAL.ink : PAL.redDark],
   ];
-  lines.forEach(([tx, bg], i) => label(ctx, tx, pad.x, pad.y + 3.0 + i * 0.92, 0.54, PAL.paper, { bg }));
+  lines.forEach(([tx, bg], i) => label(ctx, tx, pad.x, pad.y + 2.6 + i * 0.8, 0.5, PAL.paper, { bg }));
   // air legend: which colour flows at which layer
   for(let l = 0; l <= m.layers; l++){ const x0 = pad.x - pad.w / 2 + 0.9, y0 = pad.y - pad.d / 2 + 2.4 + l * 0.55; ctx.strokeStyle = hex(AIR_COLORS[l % AIR_COLORS.length]); ctx.lineWidth = 0.1; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + 1.1, y0); ctx.stroke(); label(ctx, 'L' + (l + 1), x0 + 1.8, y0, 0.4, PAL.paper); }
 }

@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><!-- TURBO: snail, mouth faces UP, wants clear air. Overwrite me, Adam! -->
+<rect x="44" y="4" width="40" height="30" rx="8" fill="#c88a45" stroke="#9e6b33" stroke-width="4"/><rect x="10" y="30" width="108" height="90" rx="22" fill="#f7b267" stroke="#c88a45" stroke-width="4"/>
+<circle cx="64" cy="72" r="34" fill="#e69a48" stroke="#c88a45" stroke-width="4"/><path d="M64 72 m-22 0 a22 22 0 1 1 44 0" fill="none" stroke="#9e6b33" stroke-width="6" stroke-linecap="round"/><circle cx="64" cy="72" r="10" fill="#9e6b33"/></svg>

@@ -9,7 +9,7 @@
 const SUPA_URL = 'https://wsjrcoibrigewmwospva.supabase.co';
 const SUPA_KEY = 'sb_publishable_n88dYo7wUYb_utwKiQT3uQ_HGOtXDZb';
 
-const EVENTS = ['g', 'm', 'build', 'shear', 'grab', 'seat', 'lap', 'cfg', 'hi', 'vo', 'va', 'vi'];
+const EVENTS = ['g', 'm', 'build', 'shear', 'grab', 'seat', 'lap', 'cfg', 'hi', 'vo', 'va', 'vi', 'drop', 'pop', 'rope', 'punch'];
 
 export const NET = {
   me: 'p' + Math.random().toString(36).slice(2, 8),

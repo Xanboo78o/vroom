@@ -4,28 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>kRacing</title>
-<link rel="stylesheet" href="./style.css?v=1787355986">
+<link rel="stylesheet" href="./style.css?v=1787407277">
 <script src="./js/vendor/supabase.js"></script>
 <!-- every module URL is stamped (?v=) by .git/hooks/pre-commit so a plain reload after a
      deploy never mixes new index.html with 10-minute-cached old JS/CSS (GitHub Pages max-age) -->
 <script type="importmap">
 { "imports": {
-    "./js/main.js": "./js/main.js?v=1787355986",
-    "./js/ring.js": "./js/ring.js?v=1787355986",
-    "./js/parts.js": "./js/parts.js?v=1787355986",
-    "./js/machine.js": "./js/machine.js?v=1787355986",
-    "./js/world.js": "./js/world.js?v=1787355986",
-    "./js/tracks.js": "./js/tracks.js?v=1787355986",
-    "./js/corner.js": "./js/corner.js?v=1787355986",
-    "./js/guy.js": "./js/guy.js?v=1787355986",
-    "./js/art.js": "./js/art.js?v=1787355986",
-    "./js/draw.js": "./js/draw.js?v=1787355986",
-    "./js/tiles.js": "./js/tiles.js?v=1787355986",
-    "./js/garage.js": "./js/garage.js?v=1787355986",
-    "./js/palette.js": "./js/palette.js?v=1787355986",
-    "./js/net.js": "./js/net.js?v=1787355986",
-    "./js/voice.js": "./js/voice.js?v=1787355986",
-    "./js/adamtrack.js": "./js/adamtrack.js?v=1787355986"
+    "./js/main.js": "./js/main.js?v=1787407277",
+    "./js/ring.js": "./js/ring.js?v=1787407277",
+    "./js/parts.js": "./js/parts.js?v=1787407277",
+    "./js/machine.js": "./js/machine.js?v=1787407277",
+    "./js/world.js": "./js/world.js?v=1787407277",
+    "./js/tracks.js": "./js/tracks.js?v=1787407277",
+    "./js/corner.js": "./js/corner.js?v=1787407277",
+    "./js/guy.js": "./js/guy.js?v=1787407277",
+    "./js/art.js": "./js/art.js?v=1787407277",
+    "./js/draw.js": "./js/draw.js?v=1787407277",
+    "./js/tiles.js": "./js/tiles.js?v=1787407277",
+    "./js/garage.js": "./js/garage.js?v=1787407277",
+    "./js/palette.js": "./js/palette.js?v=1787407277",
+    "./js/net.js": "./js/net.js?v=1787407277",
+    "./js/voice.js": "./js/voice.js?v=1787407277",
+    "./js/adamtrack.js": "./js/adamtrack.js?v=1787407277",
+    "./js/logic.js": "./js/logic.js?v=1787407277",
+    "./js/gadgets.js": "./js/gadgets.js?v=1787407277",
+    "./js/cfgpanel.js": "./js/cfgpanel.js?v=1787407277",
+    "./js/sfx.js": "./js/sfx.js?v=1787407277"
 } }
 </script>
 </head>
@@ -43,6 +47,8 @@
         <div class="lbl">repairs</div>
         <label><input type="radio" name="rep" id="repAny" checked> anywhere</label>
         <label><input type="radio" name="rep" id="repPit"> pit only</label>
+        <div class="lbl" style="margin-top:6px">gadgets</div>
+        <label><input type="checkbox" id="gadOn" checked> oil · smoke · spikes · ram · caltrops (off = pure racing)</label>
         <button id="createBtn" class="big">CREATE ROOM</button>
       </div>
       <div class="col">
@@ -69,7 +75,9 @@
   <div id="board"></div>
   <div id="prompt"></div>
 </div>
+<!-- right-click a placed block in the garage → its config card -->
+<div id="cfg" class="hide"></div>
 
-<script type="module" src="./js/main.js?v=1787355986"></script>
+<script type="module" src="./js/main.js?v=1787407277"></script>
 </body>
 </html>

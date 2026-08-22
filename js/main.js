@@ -4,9 +4,13 @@
    Canvas renderer in world units; Adam's SVGs are the art (T hot-reloads).
    ============================================================================= */
 import { makeRing } from './ring.js';
-import { PARTS, PART_ORDER, CELL, fpOf, localCenterOf, drawPart, partIcon, clearIcons, keyOf, cellsOf, parseKey } from './parts.js';
+import { PARTS, PART_ORDER, CELL, fpOf, localCenterOf, drawPart, partIcon, clearIcons, keyOf, cellsOf, parseKey, isDrivable, panelFromPoly } from './parts.js';
 import { makeMachine, starterLayout, serializeParts, loadParts, refresh, anchorFix, stepMachine, bumpMachines,
-         shearParts, cellWorld, worldToLocal, localToWorld, netSync, drawMachine, topAt, removePartKeys, TUNE } from './machine.js';
+         shearParts, cellWorld, worldToLocal, localToWorld, netSync, drawMachine, topAt, removePartKeys, TUNE, cfgOf, partFacing, segCircles } from './machine.js';
+import { buildAct } from './logic.js';
+import { GAD, addPuddle, addCaltrop, popCaltrop, addCloud, slipAt, stepGadgets, drawPuddles, drawClouds, stepRopes, drawRopes } from './gadgets.js';
+import { makeCfgPanel, keyName } from './cfgpanel.js';
+import { honk, squeak, thud, wakeAudio } from './sfx.js';
 import { GARAGE, inGarage, padOf, stepFlow, drawFlow, drawReadout, setWind, windBreakKey } from './garage.js';
 import { buildWorld, WORLD, inPit, drawWorld, drawCanopy, surfaceAt } from './world.js';
 import { SURF } from './tracks.js';
@@ -32,7 +36,10 @@ const G = {
   input: {}, mouse: { sx: 0, sy: 0, x: 0, y: 0 },
   buildSel: 'frame', buildRot: 0, buildTarget: null, ghost: null, hoverKey: null,
   carried: [],
-  roomCfg: { repair: 'any' },
+  keys: new Set(),                             // every key held right now (e.code) — blocks read their binds from it
+  poly: [], polySnap: null,                    // PANEL draw mode: points so far (cell units, machine-local) + the snapped cursor
+  entN: 1,                                     // ids for things I drop in the world
+  roomCfg: { repair: 'any', gadgets: true },
   lap: { track: -1, next: -1, t0: 0, last: 0, best: 0 },
   padT: 0, board: new Map(),
   sendT: 0, debrisN: 1, exhT: 0, dustT: 0,
@@ -43,9 +50,10 @@ window.KR = window.VR = { G, NET, TUNE, WORLD, VOICE };   // debug handle
 function boot(){
   G.cv = $('#c'); G.ctx = G.cv.getContext('2d');
   onResize(); addEventListener('resize', onResize);
-  buildWorld();
+  buildWorld(); WORLD.slipAt = slipAt;
   wireInput(); wireMenu(); wireNet();
-  window.KR.dbg = { serializeParts, loadParts, onImpact, sendBuilds, teleportTo, toggleBuild, placePart, removePart, selectPart, actionSeat, actionGrab, actionRepair, exitBuild };
+  G.cfg = makeCfgPanel({ onChange: () => {}, onDelete: k => removePart(k), partName: () => G.me ? G.me.name : '' });
+  window.KR.dbg = { serializeParts, loadParts, onImpact, sendBuilds, teleportTo, toggleBuild, placePart, removePart, selectPart, actionSeat, actionGrab, actionRepair, exitBuild, closePoly, openCfg, GAD, buildAct, cfgOf, makeMachine, starterLayout, refresh, snapshotBlue, restock };
   probeLogo(); loadArt();
   requestAnimationFrame(loop);
 }
@@ -76,7 +84,8 @@ function wireMenu(){
   $('#createBtn').onclick = async () => {
     const code = makeCode();
     const repair = $('#repAny').checked ? 'any' : 'pit';
-    await startGame({ solo: false, host: true, code, repair });
+    const gadgets = $('#gadOn') ? $('#gadOn').checked : true;
+    await startGame({ solo: false, host: true, code, repair, gadgets });
   };
   $('#joinBtn').onclick = async () => {
     const code = $('#code').value.trim().toUpperCase();
@@ -94,7 +103,7 @@ async function startGame(opt){
     $('#menuMsg').textContent = 'connecting…';
     try { await NET.join(opt.code, name, opt.host); }
     catch(e){ $('#menuMsg').textContent = 'no luck: ' + e.message; return; }
-    if(opt.host){ G.roomCfg.repair = opt.repair; }
+    if(opt.host){ G.roomCfg.repair = opt.repair; G.roomCfg.gadgets = opt.gadgets !== false; }
     $('#roomChip').textContent = NET.code;
     $('#roomChip').style.display = 'block';
     VOICE.start(NET).then(ok => { $('#vcBtn').style.display = 'block'; if(!ok) toast('mic blocked — no VC'); });
@@ -151,9 +160,17 @@ function wireNet(){
   });
   NET.on('m', d => {
     const m = G.machines.get(d.mid); if(!m || !m.remote) return;
-    m.net = { x: d.p[0], y: d.p[1], a: d.a, z: d.z || 0 };
+    m.net = { x: d.p[0], y: d.p[1], a: d.a, z: d.z || 0, sa: d.sa || null };
     m.vx = d.v[0]; m.vy = d.v[1]; m.fuel = d.fuel; m.batt = d.batt;
+    // live bits of their blocks (flames, brake lights, horn) for drawing
+    for(const p of m.parts.values()) p.on = 0;
+    if(d.on) for(const [k, v] of d.on){ const p = m.parts.get(k); if(!p) continue; p.on = v;
+      if(PARTS[p.type].horn && performance.now() - (p.hornAt || 0) > 700){ p.hornAt = performance.now(); honk(cfgOf(p).clip, 0.12); } }
   });
+  NET.on('drop', d => { if(d.kind === 'caltrop') addCaltrop(d); else if(d.kind === 'cloud') addCloud(d); else addPuddle(d); });
+  NET.on('pop', d => popCaltrop(d.id));
+  NET.on('rope', d => { if(d.on) GAD.ropes.set(d.rope.id, d.rope); else GAD.ropes.delete(d.id); });
+  NET.on('punch', d => { const m = G.machines.get(d.mid); if(m && simOwner(m) === myPid() && !m.remote) applyPunch(m, d); });
   NET.on('g', (d, from) => {
     const g = G.guys.get(from); if(!g) return;
     g.net = { x: d.p[0], y: d.p[1], yaw: d.yaw }; g.inMachine = d.inM || null;
@@ -192,7 +209,10 @@ const KEYMAP = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down',
 function wireInput(){
   addEventListener('keydown', e => {
     if(G.mode === 'menu') return;
-    if(e.target && e.target.tagName === 'INPUT') return;
+    if(e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
+    wakeAudio();
+    if(G.cfg && G.cfg.isOpen && G.cfg.onKey(e)) return;   // the config card eats keys while it's waiting for a bind / Esc
+    G.keys.add(e.code);
     if(e.ctrlKey && e.code === 'KeyG'){      // re-centre the build view
       e.preventDefault();
       const m = G.machines.get(G.buildTarget);
@@ -214,22 +234,33 @@ function wireInput(){
     }
     if(G.mode === 'build'){
       if(e.code === 'BracketLeft' || e.code === 'BracketRight') setWind(e.code === 'BracketRight' ? 10 : -10);   // the wind
-      if(e.code === 'Escape' && G.ring && G.ring.isOpen) G.ring.close();
+      if(e.code === 'Escape'){ if(G.ring && G.ring.isOpen) G.ring.close(); else if(G.poly.length) G.poly = []; }
+      if(e.code === 'Backspace' && G.poly.length){ e.preventDefault(); G.poly.pop(); }
+      if(e.code === 'Enter' && G.poly.length >= 3) closePoly();
       if(e.code === 'KeyR') G.buildRot = (G.buildRot + 1) & 3;
-      if(e.code === 'KeyX' && !(G.ring && G.ring.isOpen)) removePart();
+      if(e.code === 'KeyX' && !(G.ring && G.ring.isOpen)){ if(G.poly.length) G.poly = []; else removePart(); }
       const idx = PART_ORDER.findIndex(t => PARTS[t].key === e.key);
       if(idx >= 0) selectPart(PART_ORDER[idx]);
     }
     if(e.code === 'Space' && G.mode !== 'menu') e.preventDefault();
   });
-  addEventListener('keyup', e => { if(e.target && e.target.tagName === 'INPUT') return; if(KEYMAP[e.code]) G.input[KEYMAP[e.code]] = false; });
+  addEventListener('keyup', e => { G.keys.delete(e.code); if(e.target && e.target.tagName === 'INPUT') return; if(KEYMAP[e.code]) G.input[KEYMAP[e.code]] = false; });
+  addEventListener('blur', () => { G.keys.clear(); for(const k in G.input) G.input[k] = false; });
   addEventListener('mousemove', e => { G.mouse.sx = e.clientX; G.mouse.sy = e.clientY; });
   const cv = G.cv;
   cv.addEventListener('mousedown', e => {
     if(G.mode !== 'build') return;
-    if(e.button === 0) placePart();
+    if(e.button === 0){
+      if(G.cfg.isOpen && G.cfg.mode && G.hoverKey && G.cfg.clickPart(G.hoverKey)) return;   // picking wheels / wiring
+      if(G.buildSel === 'panel') polyClick(); else placePart();
+    }
     else if(e.button === 1){ e.preventDefault(); removePart(); }
-    else if(e.button === 2) G.ring.toggle(e.clientX, e.clientY);   // the catalog lives at the cursor
+    else if(e.button === 2){
+      // right-click a block = its config card · right-click empty = the catalog (Adam's rule)
+      const m = G.machines.get(G.buildTarget); const k = hoverPartKey(m);
+      if(k){ if(G.ring.isOpen) G.ring.close(); openCfg(m, k); }
+      else { if(G.cfg.isOpen) G.cfg.close(); G.ring.toggle(e.clientX, e.clientY); }
+    }
   });
   addEventListener('contextmenu', e => { if(document.body.classList.contains('playing')) e.preventDefault(); });
   cv.addEventListener('wheel', e => {
@@ -272,9 +303,20 @@ function actionSeat(){
 function ownerName(m){ return m.owner === myPid() ? 'your' : ((NET.peers.get(m.owner) || {}).name || '???'); }
 
 /* ---- impacts / shear / debris -------------------------------------------- */
-function onImpact(m, J, ax, ay){
+const gadgetsOn = () => G.solo || G.roomCfg.gadgets !== false;
+const nearHit = (m, list, ax, ay, r = 1.2) => list.some(e => { const w = cellWorld(m, e.k); return Math.hypot(w.x - ax, w.y - ay) < r; });
+function onImpact(m, J, ax, ay, other){
   if(m.remote || m.grace > 0) return;
-  if(G.me.inMachine === m.id) G.shake = Math.min(1, G.shake + J / 120);
+  // a BUMPER / RAM PLATE near the hit soaks up more than half of it
+  if(nearHit(m, m.bumpers, ax, ay, 1.1)){ J *= 0.45; burst(ax, ay, 5, PAL.pad, 3, 0.08); }
+  else if(gadgetsOn() && nearHit(m, m.rams, ax, ay, 1.1)){ J *= 0.5; burst(ax, ay, 5, PAL.ram, 3, 0.08); }
+  // THEIR spikes / ram plate / spinning rotor next to the contact hurt a lot more
+  if(other && gadgetsOn()){
+    if(nearHit(other, other.spikes, ax, ay, 1.3)){ J *= 2.5; burst(ax, ay, 8, PAL.spikeTip, 5, 0.08); }
+    else if(nearHit(other, other.rams, ax, ay, 1.3)){ J *= 2; burst(ax, ay, 6, PAL.ram, 4, 0.08); }
+    if(other.rotors.some(r => r.p.rs > 15 && Math.hypot(cellWorld(other, r.k).x - ax, cellWorld(other, r.k).y - ay) < 1.4)){ J *= 2; burst(ax, ay, 10, PAL.rotorBlade, 6, 0.07); }
+  }
+  if(G.me.inMachine === m.id){ G.shake = Math.min(1, G.shake + J / 120); if(J > 30) thud(Math.min(0.3, J / 300)); }
   const c0 = { ...m.center };
   const shed = shearParts(m, J, ax, ay);
   if(!shed.length){ burst(ax, ay, 4, PAL.paper, 3, 0.08); return; }
@@ -385,6 +427,7 @@ function actionRepair(){
   if(!m || !m.blue) return;
   const c0 = { ...m.center }; let n = 0;
   for(const [k, p] of m.blue) if(!m.parts.has(k)){ m.parts.set(k, { ...p }); n++; }
+  n += restock(m);
   if(!n) return;
   refresh(m); anchorFix(m, c0);
   // the knocked-off copies vanish from the track (and from friends' screens)
@@ -393,6 +436,16 @@ function actionRepair(){
   burst(m.x, m.y, 10, PAL.paper, 4, 0.1);
   toast('repaired — ' + n + ' back on');
   if(!G.solo) sendBuilds();
+}
+
+/* full ammo, no flats, cold jets — the pit / the garage / Q do this */
+function restock(m){
+  let n = 0;
+  for(const p of m.parts.values()){ const def = PARTS[p.type];
+    if(def.ammo != null && p.ammo < def.ammo){ p.ammo = def.ammo; n++; }
+    if(p.flat){ p.flat = false; n++; } }
+  for(const wh of m.wheels) wh.flat = false;
+  return n;
 }
 
 /* ---- build mode ----------------------------------------------------------- */
@@ -424,22 +477,27 @@ function toggleBuild(){
   if(!padOf(target) || padOf(target) !== myPad()) parkOnPad(target);
   G.buildTarget = target.id;
   target.editing = true; target.vx = target.vy = target.w = 0; target.z = 0; target.air = false;
+  for(const s of target.segs){ s.rel = 0; s.wrel = 0; }   // trailers straighten out on the pad
   G.buildCam = { x: target.x, y: target.y };
-  G.mode = 'build';
+  G.mode = 'build'; G.poly = [];
   if(!G.ring) G.ring = makeRing({ iconFor: partIcon, held: () => G.buildSel, onPick: selectPart });
   G.ghost = null;
 }
 function exitBuild(){
   const m = G.machines.get(G.buildTarget);
-  if(m){ m.editing = false; m.grace = 1.5; refresh(m); m.fuel = m.fuelMax; m.batt = 100; snapshotBlue(m); if(!G.solo) sendBuilds(); }   // settle never shears; the garage fills you up
+  if(m){ m.editing = false; m.grace = 1.5; restock(m); refresh(m); for(const s of m.segs){ s.rel = 0; s.wrel = 0; } m.fuel = m.fuelMax; m.batt = m.battMax; snapshotBlue(m); if(!G.solo) sendBuilds(); }   // settle never shears; the garage fills you up
   G.mode = 'play';
   if(G.ring) G.ring.close();
-  G.ghost = null; G.buildCam = null;
+  if(G.cfg) G.cfg.close();
+  G.ghost = null; G.buildCam = null; G.poly = [];
 }
-function selectPart(t){ G.buildSel = t; }
+function selectPart(t){ G.buildSel = t; if(t !== 'panel') G.poly = []; }
+/* the topmost part under the cursor (any layer) */
+function hoverPartKey(m){ if(!m) return null; const L = worldToLocal(m, G.mouse.x, G.mouse.y); const ci = Math.round(L.x / CELL), cj = Math.round(L.y / CELL); const tl = topAt(m, ci, cj); return tl >= 0 ? m.occ.get(key(ci, cj, tl)) : null; }
+function openCfg(m, k){ if(!m || !m.parts.has(k)) return; G.cfg.open(m, k); }
 function buildHover(){
   const m = G.machines.get(G.buildTarget);
-  G.ghost = null; G.hoverKey = null;
+  G.ghost = null; G.hoverKey = null; G.polySnap = null;
   if(!m) return;
   if(G.ring && G.ring.isOpen) return;
   const L = worldToLocal(m, G.mouse.x, G.mouse.y);
@@ -447,6 +505,13 @@ function buildHover(){
   const tl = topAt(m, ci, cj);                                   // topmost part under the cursor
   const top = tl >= 0 ? m.occ.get(key(ci, cj, tl)) : null;
   G.hoverKey = top;
+  if(G.buildSel === 'panel'){
+    // PANEL draw mode: the cursor snaps to the nearest cell CENTRE or CORNER (cell units)
+    const x = L.x / CELL, y = L.y / CELL;
+    const c = [Math.round(x), Math.round(y)], k = [Math.round(x - 0.5) + 0.5, Math.round(y - 0.5) + 0.5];
+    G.polySnap = Math.hypot(x - c[0], y - c[1]) <= Math.hypot(x - k[0], y - k[1]) ? { x: c[0], y: c[1] } : { x: k[0], y: k[1] };
+    return;
+  }
   const [fw, fd] = fpOf(G.buildSel);
   let ai, aj, al;
   if(top){
@@ -478,20 +543,44 @@ function placePart(){
   refresh(m); anchorFix(m, c0);
   G.ghost = null;
 }
-function removePart(){
+function removePart(rk = G.hoverKey){
   const m = G.machines.get(G.buildTarget);
-  if(!m || !G.hoverKey || m.parts.size <= 1) return;
+  if(!m || !rk || !m.parts.has(rk) || m.parts.size <= 1) return;
   const c0 = { ...m.center };
-  const p = m.parts.get(G.hoverKey); const wp = cellWorld(m, G.hoverKey);
+  const p = m.parts.get(rk); const wp = cellWorld(m, rk);
   // anything stacked on it comes off too
-  const [ri, rj, rl] = parseKey(G.hoverKey); const [rw, rd] = fpOf(p.type);
-  const gone = [G.hoverKey];
-  for(let l = rl + 1; l < m.layers; l++) for(const [k] of m.parts){ const [i, j, kl] = parseKey(k); if(kl !== l) continue; const [w, d] = fpOf(m.parts.get(k).type);
-    if(i < ri + rw && i + w > ri && j < rj + rd && j + d > rj && !gone.includes(k)) gone.push(k); }
+  const [ri, rj, rl] = parseKey(rk);
+  const mine = new Set([...cellsOf(ri, rj, p.type, rl, p)].map(([a, b]) => a + ',' + b));
+  const gone = [rk];
+  for(let l = rl + 1; l < m.layers; l++) for(const [k, q] of m.parts){ const [i, j, kl] = parseKey(k); if(kl !== l || gone.includes(k)) continue;
+    for(const [a, b] of cellsOf(i, j, q.type, l, q)) if(mine.has(a + ',' + b)){ gone.push(k); for(const [a2, b2] of cellsOf(i, j, q.type, l, q)) mine.add(a2 + ',' + b2); break; } }
   for(const k of gone) m.parts.delete(k);
+  // wires / wheel picks pointing at what's gone go too
+  for(const q of m.parts.values()){ if(!q.cfg) continue; if(q.cfg.out) q.cfg.out = q.cfg.out.filter(o => m.parts.has(o.k)); if(q.cfg.wheels){ q.cfg.wheels = q.cfg.wheels.filter(k => m.parts.has(k)); if(!q.cfg.wheels.length) delete q.cfg.wheels; } }
   refresh(m); anchorFix(m, c0);
   if(p) burst(wp.x, wp.y, 5, PARTS[p.type].color, 3, 0.08);
+  if(G.cfg.isOpen && (G.cfg.key === rk || !m.parts.has(G.cfg.key))) G.cfg.close();
   G.hoverKey = null;
+}
+/* ---- PANEL draw mode: click points, close on the first one ---- */
+function polyClick(){
+  const s = G.polySnap; if(!s) return;
+  if(G.poly.length >= 3 && Math.hypot(s.x - G.poly[0][0], s.y - G.poly[0][1]) < 0.35){ closePoly(); return; }
+  if(G.poly.length && Math.hypot(s.x - G.poly[G.poly.length - 1][0], s.y - G.poly[G.poly.length - 1][1]) < 0.01) return;
+  G.poly.push([s.x, s.y]);
+}
+function closePoly(){
+  const m = G.machines.get(G.buildTarget); if(!m || G.poly.length < 3){ G.poly = []; return; }
+  const pf = panelFromPoly(G.poly); G.poly = [];
+  if(!pf){ toast('panel covers no cells'); return; }
+  // one layer for the whole panel: the layer above whatever it sits on — all of it the same
+  let L = -2, touch = false;
+  for(const [a, b] of pf.cells){ const t = topAt(m, pf.i0 + a, pf.j0 + b); if(L === -2) L = t; else if(t !== L){ toast('a panel must sit on ONE level (or all on the ground)'); return; }
+    if(t < 0) for(const d of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if(m.occ.has(key(pf.i0 + a + d[0], pf.j0 + b + d[1], 0))) touch = true; }
+  if(L < 0 && !touch){ toast('a ground panel must touch the build'); return; }
+  const c0 = { ...m.center };
+  m.parts.set(key(pf.i0, pf.j0, L + 1), { type: 'panel', rot: 0, cfg: { cells: pf.cells, poly: pf.poly, color: G.panelColor || PAL.panel } });
+  refresh(m); anchorFix(m, c0);
 }
 function drawBuildOverlay(ctx, zoom){
   const m = G.machines.get(G.buildTarget); if(!m) return;
@@ -507,6 +596,27 @@ function drawBuildOverlay(ctx, zoom){
     rrect(ctx, i * CELL - CELL / 2 - m.center.x, j * CELL - CELL / 2 - m.center.y, w * CELL, d * CELL, 0.08);
     ctx.lineWidth = 0.05; ctx.strokeStyle = rgba(PAL.red, 0.8); ctx.stroke();
   }
+  // wires (sensor → block, with the amount) and wheel picks (engine/brake → wheels)
+  const cfgK = G.cfg.isOpen ? G.cfg.key : null;
+  for(const [k, p] of m.parts){
+    const c = cfgOf(p); const bold = k === cfgK;
+    for(const o of c.out){ const t = m.parts.get(o.k); if(!t) continue; link(ctx, m, p, t, PAL.wire, bold ? 0.9 : 0.45, t && !PARTS[t.type].gate ? Math.round((o.amt == null ? 1 : o.amt) * 100) + '%' : '', p.sig ? 0.09 : 0.05); }
+    if(c.wheels) for(const wk of c.wheels){ const t = m.parts.get(wk); if(t) link(ctx, m, p, t, PARTS[p.type].brake ? PAL.brake : PAL.engine, bold ? 0.9 : 0.35, '', 0.05); }
+  }
+  if(cfgK && m.parts.has(cfgK)){
+    const p = m.parts.get(cfgK); const [w, d] = fpOf(p.type, p).map(v => v * CELL);
+    rrect(ctx, p.lx - w / 2 - 0.04 - m.center.x, p.ly - d / 2 - 0.04 - m.center.y, w + 0.08, d + 0.08, 0.1); ctx.lineWidth = 0.06; ctx.strokeStyle = hex(PAL.blue); ctx.stroke();
+    if(G.cfg.mode) for(const [k, q] of m.parts){ const qd = PARTS[q.type]; const ok = G.cfg.mode === 'wheels' ? qd.wheel : (k !== cfgK && (isDrivable(qd) || qd.gate)); if(!ok) continue;
+      const [qw, qd2] = fpOf(q.type, q).map(v => v * CELL); rrect(ctx, q.lx - qw / 2 - m.center.x, q.ly - qd2 / 2 - m.center.y, qw, qd2, 0.08); ctx.lineWidth = 0.05; ctx.setLineDash([0.08, 0.08]); ctx.strokeStyle = rgba(PAL.blue, 0.9); ctx.stroke(); ctx.setLineDash([]); }
+  }
+  // PANEL in progress: points, edges, the snapped cursor, the cells it would cover
+  if(G.buildSel === 'panel'){
+    const pts = G.poly.map(([x, y]) => [x * CELL - m.center.x, y * CELL - m.center.y]);
+    if(G.poly.length >= 3){ const pf = panelFromPoly(G.poly); if(pf){ ctx.fillStyle = rgba(PAL.panel, 0.35); for(const [a, b] of pf.cells) ctx.fillRect((pf.i0 + a - 0.5) * CELL - m.center.x, (pf.j0 + b - 0.5) * CELL - m.center.y, CELL, CELL); } }
+    if(pts.length){ ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); if(G.polySnap) ctx.lineTo(G.polySnap.x * CELL - m.center.x, G.polySnap.y * CELL - m.center.y); ctx.lineWidth = 0.05; ctx.strokeStyle = hex(PAL.ink); ctx.setLineDash([0.1, 0.08]); ctx.stroke(); ctx.setLineDash([]);
+      pts.forEach(([x, y], i) => { ctx.beginPath(); ctx.arc(x, y, i === 0 ? 0.11 : 0.07, 0, 7); ctx.fillStyle = hex(i === 0 ? PAL.red : PAL.ink); ctx.fill(); }); }
+    if(G.polySnap){ ctx.beginPath(); ctx.arc(G.polySnap.x * CELL - m.center.x, G.polySnap.y * CELL - m.center.y, 0.09, 0, 7); ctx.fillStyle = hex(PAL.blue); ctx.fill(); }
+  }
   // ghost of what you'd place
   if(G.ghost){
     const c = localCenterOf(G.ghost.i, G.ghost.j, G.buildSel);
@@ -517,6 +627,77 @@ function drawBuildOverlay(ctx, zoom){
   }
   ctx.restore();
 }
+
+function link(ctx, m, a, b, color, alpha, text, lw){
+  const x0 = a.lx - m.center.x, y0 = a.ly - m.center.y, x1 = b.lx - m.center.x, y1 = b.ly - m.center.y;
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineWidth = lw; ctx.strokeStyle = rgba(color, alpha); ctx.lineCap = 'round'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x1, y1, 0.07, 0, 7); ctx.fillStyle = rgba(color, alpha); ctx.fill();
+  if(text){ ctx.fillStyle = rgba(PAL.ink, alpha); ctx.font = '900 0.16px Trebuchet MS, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, (x0 + x1) / 2, (y0 + y1) / 2 - 0.12); }
+}
+
+/* ---- gadgets the DRIVER fires: oil, smoke, caltrops, the banana, the tow hook, the horn ---- */
+function dropAt(m, back = 0.6){
+  // behind the WHOLE machine (trailers included), so you don't run over your own mess
+  const f = partFacing(m, { rot: 0, seg: 0 }); let far = m.radius;
+  for(const c of segCircles(m)){ const d = -((c.x - m.x) * f.x + (c.y - m.y) * f.y) + c.r; if(d > far) far = d; }
+  return { x: m.x - f.x * (far + back), y: m.y - f.y * (far + back) };
+}
+function sendDrop(d){ if(!G.solo) NET.send('drop', d); }
+function stepMyGadgets(m, dt){
+  const on = gadgetsOn(); const A = m.act;
+  for(const g of m.gadgets){
+    const p = g.p; const a = (A.get(g.k) || 0) > 0; const edge = a && !p.wasAct; p.wasAct = a;
+    if(!on) continue;
+    if(g.kind === 'oil' && edge && p.ammo > 0){ p.ammo--; const d = { id: myPid() + ':' + (G.entN++), kind: 'oil', ...dropAt(m), r: 1.7 }; addPuddle(d); sendDrop(d); burst(d.x, d.y, 6, PAL.oil, 3, 0.09); }
+    else if(g.kind === 'caltrops' && edge && p.ammo > 0){ p.ammo--; const o = dropAt(m, 0.8); for(let i = 0; i < 3; i++){ const d = { id: myPid() + ':' + (G.entN++), kind: 'caltrop', x: o.x + rnd(2.2), y: o.y + rnd(2.2) }; addCaltrop(d); sendDrop(d); } }
+    else if(g.kind === 'smoke' && a && p.ammo > 0){ p.ammo = Math.max(0, p.ammo - dt); p.smokeT = (p.smokeT || 0) - dt;
+      if(p.smokeT <= 0){ p.smokeT = 0.14; const o = dropAt(m, 0.4); const d = { id: myPid() + ':' + (G.entN++), kind: 'cloud', x: o.x + rnd(0.6), y: o.y + rnd(0.6), r: 1.5, vx: rnd(0.8), vy: rnd(0.8), owner: myPid(), t: 5 }; addCloud(d); sendDrop(d); } }
+    else if(g.kind === 'banana'){
+      if(edge){ p.holdT = 0; p.ate = false; }
+      if(a && p.ammo > 0){ p.holdT = (p.holdT || 0) + dt; if(p.holdT > 0.8 && !p.ate){ p.ate = true; p.ammo--; m.fuel = Math.min(m.fuelMax, m.fuel + 8); burst(m.x, m.y, 8, PAL.banana, 4, 0.09); squeak(0.1); toast('mm. +8 fuel'); } }
+      if(!a && p.wasHeld && !p.ate && (p.holdT || 0) < 0.8 && p.ammo > 0){ p.ammo--; const d = { id: myPid() + ':' + (G.entN++), kind: 'peel', ...dropAt(m), r: 0.9 }; addPuddle(d); sendDrop(d); }
+      p.wasHeld = a;
+    }
+  }
+  for(const h of m.hooks){
+    const p = h.p; const a = (A.get(h.k) || 0) > 0; const edge = a && !p.wasAct; p.wasAct = a; if(!edge) continue;
+    const mine = [...GAD.ropes.values()].find(r => r.from === m.id && r.k === h.k);
+    if(mine){ GAD.ropes.delete(mine.id); if(!G.solo) NET.send('rope', { on: false, id: mine.id }); toast('rope off'); continue; }
+    const hp = cellWorld(m, h.k); let best = null, bd = 7;
+    for(const o of G.machines.values()){ if(o === m || !o.parts.size) continue; const d = Math.hypot(o.x - hp.x, o.y - hp.y) - o.radius; if(d < bd){ bd = d; best = o; } }
+    if(!best){ toast('nothing to hook (get within 7)'); continue; }
+    const rope = { id: myPid() + ':' + (G.entN++), from: m.id, k: h.k, to: best.id, len: Math.max(3, Math.hypot(best.x - hp.x, best.y - hp.y) + 0.5) };
+    GAD.ropes.set(rope.id, rope); if(!G.solo) NET.send('rope', { on: true, rope }); burst(hp.x, hp.y, 5, PAL.hook, 3, 0.08);
+  }
+  for(const d of m.decor){
+    const p = d.p; if(!PARTS[p.type].horn) continue;
+    const a = (A.get(d.k) || 0) > 0; const edge = a && !p.wasAct; p.wasAct = a; p.on = a ? 1 : 0;
+    if(edge){ honk(cfgOf(p).clip); const w = cellWorld(m, d.k); burst(w.x, w.y, 4, PAL.horn, 3, 0.07); }
+  }
+}
+/* a piston punched THIS machine (mine, or told over the net) */
+function applyPunch(o, d){
+  o.vx += d.fx * TUNE.punchV * 0.9; o.vy += d.fy * TUNE.punchV * 0.9;
+  o.w += ((d.x - o.x) * d.fy - (d.y - o.y) * d.fx) * o.invI * 2.2;
+  if(!o.air){ o.air = true; o.vz = 3; }
+  burst(d.x, d.y, 6, PAL.piston, 4, 0.08);
+  onImpact(o, 36, d.x, d.y);
+}
+function stepPunches(){
+  for(const m of G.machines.values()){
+    if(!m.punch || m.remote || simOwner(m) !== myPid()) continue;
+    const pu = m.punch; m.punch = null; thud(0.12);
+    for(const o of G.machines.values()){
+      if(o === m || !o.parts.size || Math.abs(o.z - m.z) > 0.8) continue;
+      if(Math.hypot(o.x - pu.x, o.y - pu.y) > o.radius + 0.5) continue;
+      const d = { mid: o.id, x: pu.x, y: pu.y, fx: pu.fx, fy: pu.fy };
+      if(simOwner(o) === myPid() && !o.remote) applyPunch(o, d); else if(!G.solo) NET.send('punch', d);
+      m.vx -= pu.fx * TUNE.punchV * 0.4; m.vy -= pu.fy * TUNE.punchV * 0.4;   // reaction
+    }
+  }
+}
+/* a caltrop got one of my wheels */
+function onFlat(m, wh, c){ burst(c.x, c.y, 6, PAL.caltrop, 3, 0.08); if(!G.solo) NET.send('pop', { id: c.id }); if(m.driver === myPid()) toast('FLAT TYRE — Q / pit fixes it'); }
 
 /* too much wind for a part → it rips off and blows down the tunnel (one part every 0.35 s) */
 function windStress(m, dt){
@@ -642,11 +823,12 @@ function stepEffects(dt){
     const sp = Math.hypot(m.vx, m.vy);
     const fwdx = Math.sin(m.a), fwdy = -Math.cos(m.a);
     // exhaust from engines while driving
-    if(G.exhT <= 0 && m.driver && Math.abs(m.throttle) > 0.1 && m.engines && m.fuel > 0 && Math.min(m.engines, m.freeIntakes) > 0){
-      for(const [k, p] of m.parts){ if(p.type !== 'engine') continue;
-        const [i, j] = k.split(',').map(Number); const c = localCenterOf(i, j, p.type);
-        const wp = localToWorld(m, c.x, c.y + 0.38);
-        puff(wp.x, wp.y, { vx: -fwdx * 1.5 + rnd(1), vy: -fwdy * 1.5 + rnd(1), r: 0.14, grow: 0.9, life: 0.5, color: m.boosting ? PAL.intake : 0xe8e4d8, alpha: 0.5, z: m.z });
+    if(G.exhT <= 0){
+      for(const [k, p] of m.parts){ const def = PARTS[p.type]; if(!(p.on > 0.05)) continue;
+        if(def.engine && !def.engine.jet && m.fuel > 0){ const wp = cellWorld(m, k); const f = partFacing(m, p);
+          puff(wp.x - f.x * 0.38, wp.y - f.y * 0.38, { vx: -fwdx * 1.5 + rnd(1), vy: -fwdy * 1.5 + rnd(1), r: 0.14, grow: 0.9, life: 0.5, color: m.boosting ? PAL.intake : 0xe8e4d8, alpha: 0.5, z: m.z }); }
+        else if(def.thrust || (def.engine && def.engine.jet)){ const wp = cellWorld(m, k); const f = partFacing(m, p); const R = def.thrust ? 0.45 : 0.6;
+          puff(wp.x - f.x * R, wp.y - f.y * R, { vx: -f.x * 9 * p.on + rnd(1.5), vy: -f.y * 9 * p.on + rnd(1.5), r: 0.12, grow: 1.6, life: 0.35, color: def.thrust && PARTS[p.type].thrust.batt ? 0xa8f0ff : PAL.jetGlow, alpha: 0.7, z: m.z }); }
       }
     }
     // dust / splash off the asphalt, tire smoke when sliding
@@ -681,6 +863,11 @@ function loop(t){
     drv.steer = (G.input.left ? -1 : 0) + (G.input.right ? 1 : 0);
     drv.boosting = !!G.input.run;
   }
+  // what every block is asked to do: the driver's keys + the logic wires
+  for(const m of G.machines.values()){
+    if(m.editing || m.remote || simOwner(m) !== myPid()) continue;
+    buildAct(m, m === drv ? G.keys : null, G.machines.values());
+  }
   // step everything I simulate
   const sub = 2, sdt = dt / sub;
   for(let s = 0; s < sub; s++){
@@ -690,7 +877,11 @@ function loop(t){
       stepMachine(m, WORLD, sdt, onImpact);
       for(const o of G.machines.values()) if(o !== m) bumpMachines(m, o, onImpact);
     }
+    stepRopes(sdt, G.machines, m => !m.remote && !m.editing && simOwner(m) === myPid());
   }
+  stepPunches();
+  if(drv) stepMyGadgets(drv, dt);
+  stepGadgets(dt, G.machines, m => !m.remote && !m.editing && simOwner(m) === myPid(), onFlat);
   // the cursor in world space (camera from last frame is fine)
   const mw = toWorld(G.mouse.sx, G.mouse.sy); G.mouse.x = mw.x; G.mouse.y = mw.y;
   if(G.mode === 'play') stepGuy(G.me, WORLD, G.input, dt, mouseAim());
@@ -704,7 +895,8 @@ function loop(t){
     stepLap(drv);
     if(inPit(drv.x, drv.y) && Math.hypot(drv.vx, drv.vy) < 2){
       const before = drv.fuel;
-      drv.fuel = Math.min(drv.fuelMax, drv.fuel + 22 * dt); drv.batt = Math.min(100, drv.batt + 22 * dt);
+      drv.fuel = Math.min(drv.fuelMax, drv.fuel + 22 * dt); drv.batt = Math.min(drv.battMax, drv.batt + 22 * dt);
+      if(restock(drv)) burst(drv.x, drv.y, 6, PAL.paper, 3, 0.08);
       if(drv.fuel > before) pitFlash(t);
     }
   }
@@ -723,7 +915,9 @@ function loop(t){
       for(const m of G.machines.values()){
         if(m.remote || m.editing || simOwner(m) !== myPid()) continue;
         if(m.vx * m.vx + m.vy * m.vy < 0.01 && !m.driver) continue;
-        NET.send('m', { mid: m.id, p: [m.x, m.y], a: m.a, v: [m.vx, m.vy], z: m.z, fuel: m.fuel | 0, batt: m.batt | 0 });
+        const on = []; for(const [k, p] of m.parts) if(p.on > 0.05 && (PARTS[p.type].thrust || PARTS[p.type].horn || PARTS[p.type].brake || PARTS[p.type].rotor || PARTS[p.type].piston || (PARTS[p.type].engine && PARTS[p.type].engine.jet))) on.push([k, Math.round(p.on * 100) / 100]);
+        const sa = m.segs.length > 1 ? m.segs.slice(1).map(s => Math.round(s.rel * 100) / 100) : undefined;
+        NET.send('m', { mid: m.id, p: [m.x, m.y], a: m.a, v: [m.vx, m.vy], z: m.z, fuel: m.fuel | 0, batt: m.batt | 0, on, sa });
       }
     }
   }
@@ -760,16 +954,20 @@ function render(ts){
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   const view = { x0: cx - G.W / 2 / z, x1: cx + G.W / 2 / z, y0: cy - G.H / 2 / z, y1: cy + G.H / 2 / z };
   drawWorld(ctx, view, z, ts);
+  drawPuddles(ctx);
   drawDebris(ctx, z);
-  for(const m of G.machines.values()) drawMachine(ctx, m, z, ts, 1, { com: G.mode === 'build' && m.id === G.buildTarget });
+  drawRopes(ctx, G.machines);
+  for(const m of G.machines.values()) drawMachine(ctx, m, z, ts, 1, { com: G.mode === 'build' && m.id === G.buildTarget, xray: G.mode === 'build' && m.id === G.buildTarget, name: plateName(m) });
   if(G.mode === 'build'){ const bm = G.machines.get(G.buildTarget); if(bm){ drawFlow(ctx); drawReadout(ctx, bm); } drawBuildOverlay(ctx, z); }
   for(const g of G.guys.values()) drawGuy(ctx, g, z, ts);
   if(G.me) drawGuy(ctx, G.me, z, ts);
   // carried parts float by the guy
   if(G.me && G.carried.length && !G.me.inMachine){ ctx.save(); ctx.translate(G.me.x, G.me.y - 0.9 - Math.sin(ts * 4) * 0.06); ctx.scale(0.7, 0.7); drawPart(ctx, G.carried[G.carried.length - 1].type, 0, z); ctx.restore(); }
   drawFX(ctx);
+  drawClouds(ctx, myPid());
   drawCanopy(ctx, view, z);
 }
+function plateName(m){ return m.owner === myPid() ? (G.me ? G.me.name : '') : ((NET.peers.get(m.owner) || {}).name || ''); }
 
 /* ---- hud ------------------------------------------------------------------ */
 let lastPitFlash = 0;
@@ -780,16 +978,19 @@ function hud(drv, t){
     sp.style.display = 'block';
     sp.textContent = Math.round(Math.hypot(drv.vx, drv.vy) * 3.1) + ' mph';
     $('#bars').style.display = 'flex';
-    fu.style.width = (drv.fuelMax ? drv.fuel / drv.fuelMax * 100 : 0) + '%'; ba.style.width = drv.batt + '%';
+    fu.style.width = (drv.fuelMax ? drv.fuel / drv.fuelMax * 100 : 0) + '%'; ba.style.width = (drv.battMax ? drv.batt / drv.battMax * 100 : 0) + '%';
     lapEl.style.display = G.lap.next > 0 ? 'block' : 'none';
     if(G.lap.next > 0) lapEl.textContent = (WORLD.tracks[G.lap.track] ? WORLD.tracks[G.lap.track].name + '  ' : '') + fmtMs(performance.now() - G.lap.t0) + (G.lap.best ? '  best ' + fmtMs(G.lap.best) : '');
     const pad = G.padT > 0 ? WORLD.pads.find(p => Math.hypot(drv.x - p.x, drv.y - p.y) < p.r) : null;
+    const ammo = gadgetsOn() ? drv.gadgets.map(g => PARTS[g.p.type].label + ' ' + (g.kind === 'smoke' ? Math.ceil(g.p.ammo) + 's' : g.p.ammo)).join(' · ') : '';
     prompt(pad ? '→ ' + pad.name + ' …' : t - lastPitFlash < 400 ? 'PIT — refueling' :
-      (drv.fuel <= 0 && drv.engines ? 'OUT OF FUEL — pit lane refuels' : (drv.blue && drv.parts.size < drv.blue.size ? 'Q repair · ' : '') + 'E hop out · Shift VROOM'));
+      (drv.fuel <= 0 && drv.engines ? 'OUT OF FUEL — pit lane refuels' : (drv.blue && drv.parts.size < drv.blue.size ? 'Q repair · ' : '') + (drv.wheels.some(w => w.flat) ? 'FLAT · ' : '') + 'E hop out · Shift VROOM' + (ammo ? ' · ' + ammo : '')));
   } else {
     sp.style.display = 'none'; $('#bars').style.display = 'none'; lapEl.style.display = 'none';
     let p = '';
-    if(G.mode === 'build') p = 'right-click: catalog · click add (middle = stack up, edge = sideways) · X remove · R rotate · [ ] wind · Ctrl+G recenter · B done';
+    if(G.mode === 'build') p = G.buildSel === 'panel' ? 'PANEL: click points (they snap to the grid) · click the first point to close · Backspace undo · Esc cancel · right-click: catalog'
+      : G.cfg.isOpen && G.cfg.mode ? (G.cfg.mode === 'wheels' ? 'click the WHEELS this block works on (max 4) · Esc done' : 'click a block to wire into · Esc done')
+      : 'right-click empty: catalog · right-click a block: configure · click add (middle = stack, edge = sideways) · X remove · R rotate · [ ] wind · B done';
     else {
       let nearSeat = false, nearDb = false;
       for(const m of G.machines.values()){ if(!m.seatKey || m.driver) continue; const s = cellWorld(m, m.seatKey); if(Math.hypot(s.x - G.me.x, s.y - G.me.y) < 2.6){ nearSeat = true; break; } }

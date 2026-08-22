@@ -1,0 +1,2 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><!-- SOLAR: charges when nothing's stacked on it. Overwrite me, Adam! -->
+<rect x="5" y="5" width="118" height="118" rx="8" fill="#2f5fa8" stroke="#254b84" stroke-width="4"/><g stroke="#7fa5dc" stroke-width="3"><path d="M34 5 V123 M64 5 V123 M94 5 V123 M5 34 H123 M5 64 H123 M5 94 H123"/></g><path d="M14 30 L30 14" stroke="#bcd3f2" stroke-width="4" stroke-linecap="round"/></svg>

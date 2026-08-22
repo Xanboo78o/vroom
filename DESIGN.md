@@ -616,3 +616,80 @@ top-down → chase → FPS → free; his add-on: "also add camera in this update
 **Shipped 2026-08-21 (milestone 1):** lighting/shadows/sky/tiles/kerbs/post-FX/presets/palette/
 rename, Kris's Corner (4 critters + Kris + statue + signs + billboards + grandstand + booth),
 paint + decals v1, cameras (top/chase/fps/free). See README "UPDATE 1".
+
+## BLOCKS PACKS (2D era, 2026-08-22) — 5 packs × 4, brainstorm for the "blocks flood"
+Context: 2D pivot done; 28 blocks exist (frames ×3, lead, foam, plate, bumper, seat, wheel, slick,
+monster, caster, engine, v8, turbo, tank, jerry, intake, battery, bigbatt, motor, fan, solar, wing,
+nose, wedge, curve, fin). Answers below decide what floods next.
+
+### B1 / PACK 1 (order / wheels / mech / banked prize)
+- B1.1 Order: **PANELS FIRST** — "i want panels that i can use to make my car look cool like the
+  besiege panels." (Besiege-style body panels = the first new family; reshuffles the old Q188 order.)
+- B1.2 Wheels: **3 sizes × 4 compounds** (1×1 / 2×2 / 3×3 × road / slick / off-road / spiked)
+  + caster = 13 wheel blocks. Size = grip radius + mass; compound = surface multipliers.
+- B1.3 Mech in 2D: **hinge = trailer joint** (splits the machine into two pivoting bodies),
+  piston = extends on a bind (ram/flipper), rotor = spins what's attached (flail).
+- B1.4 Banked silly secret block: **KEEP BANKED.**
+
+### B2 / PACK 2 (panels)
+- B2.1 Shape kit: **FREE-DRAW PANEL** — one PANEL block; you drag/click a polygon over your frame
+  and it becomes a panel shape ("the player literally makes the panel shapes"). No preset kit.
+- B2.2 Placing: **thin blocks** — a panel occupies the cells its polygon covers (1 layer, light,
+  no grip); normal stack rules. Drawn as the real polygon, not as cells.
+- B2.3 Uses: **looks (paintable) + aero (front-face panel = streamlined) + armour (panel takes
+  shear before the block under it) + HIDE YOUR BUILD** — others see your skin, not your engines;
+  ramming panels off = spying.
+- B2.4 Coin flip: **VOIDED** by B2.1 (no preset shapes to win/hide); it was tails, for the record.
+
+### B3 / PACK 3 (draw tool / gadgets / thrusters / crates)
+- B3.1 Panel draw tool: **click points, snap to grid corners + cell centres**; click first point to
+  close; right-click undoes a point.
+- B3.2 Gadgets (room toggle): **oil dropper (slick puddle tile, grip ×0.2, fades), smoke (cloud hides
+  YOUR car on others' screens), spikes (contact shears their block), ram plate (your impulse ×2,
+  theirs ×0.5) + 5th: CALTROPS** (dropped spikies puncture wheels: grip halves until pit / Q).
+- B3.3 Thrusters: **BOTH** — ROCKET (fuel, big thrust while held, works mid-air, glows) and ION
+  (battery, weaker, steady; pairs with solar/fans). Facing blocks, bindable; sideways = drift
+  control; thruster + hinge + 'towards nearest block' = engineered missile.
+- B3.4 Crate C → **I build ONE extra silly block of MY design** (pre-written outcome; A = critter
+  fact, B = he vetoes one of my block stats).
+
+### B4 / PACK 4 (tools / power+config / decor / tooltip)
+- B4.1 Tools: **TOW HOOK + ROPE first** — hook block; bind near another machine/prop → rope links
+  you (tow a dead friend, slingshot a pole, drag a trailer). Magnet/winch later.
+- B4.2 Power + config (his words, verbatim-ish): **brakes are configurable to specific wheels, up to
+  4 per brake block, "just like an engine"** (engines assign to up to 4 wheels too) **and their
+  INPUTS (binds) are configurable — by RIGHT-CLICKING the placed block** (opens its config).
+  **Right-click on EMPTY space (not on your build) = opens the parts ring.** Also ADD the other
+  engines (PUTT 1×1 lawnmower, JET 3×3 turbine). **JET needs 1 intake; the NORMAL engine needs
+  NO intakes — intakes just improve it slightly.** (V8: unchanged at 2 until he says otherwise.)
+- B4.3 Decor: **decor only, NO night/day cycle** — FLAG (waves, texture-able), NUMBER PLATE
+  (your number/name), ANTENNA (wobbles), HORN (plays a clip).
+- B4.4 Jerrycan tooltip: **"do NOT shake"**.
+
+### B5 / PACK 5 (logic / found / ship order / bet)
+- B5.1 Logic (his spec): **"a pit limiter would be a Speed Sensor, set to >60, then it outputs to
+  brakes on 100% harshness, then it brings you down to 60."** So SENSORS carry their own threshold
+  dial and WIRE STRAIGHT INTO a block's input with an amount (no separate compare/switch).
+  Add: **SPEED sensor, PROXIMITY sensor, AND, OR, NOT, NOR.**
+- B5.2 Found-in-world: **nothing hidden this flood** — everything in the ring from the start.
+- B5.3 Ship order: **ONE GIANT PUSH.**
+- B5.4 Bet: **HOLD 100–150.**
+
+**THE FLOOD (locked by B1–B5):** free-draw PANEL (points snap to grid; thin block; paint/aero/
+armour/hide) · 13 wheels (3 sizes × road/slick/off/spiked + caster) · BRAKE (assign ≤4 wheels,
+bindable, harshness) · engines assign ≤4 wheels · PUTT + JET engines (jet needs 1 intake, normal
+needs 0, intakes = small bonus) · right-click block = config panel, right-click empty = ring ·
+HINGE (trailer joint) / PISTON / ROTOR · OIL / SMOKE / SPIKES / RAM PLATE / CALTROPS (room toggle) ·
+ROCKET + ION thrusters · TOW HOOK + ROPE · FLAG / NUMBER PLATE / ANTENNA / HORN · SPEED + PROXIMITY
+sensors, AND / OR / NOT / NOR · one silly block of mine (crate C) · jerrycan tooltip "do NOT shake".
+
+
+## UPDATE 2 — BLOCKS FLOOD shipped 2026-08-22 (one giant push, per B5.3)
+Everything in "THE FLOOD" above is live: free-draw PANEL (snap points, one-level rule, paint/aero/armour/hide),
+13 wheels + BRAKE (per-wheel, harshness, lock = slide), engines + brakes pick ≤4 wheels, right-click block = config card /
+right-click empty = ring, PUTT + JET (jet = thrust block, spools, needs 1 intake; normal engine needs 0, intakes +8 % each;
+V8 needs 1), HINGE segments (trailer swings on a pin, limits ±1.5 rad, reaction drags the body), PISTON (edge punch,
+wall-kick hop), ROTOR (spin, reaction torque, 2 at full spin = hop, saw ×2 on contact), OIL / SMOKE / SPIKES / RAM /
+CALTROPS (+ the crate-C silly block), ROCKET + ION, TOW HOOK + rope (spring, both clients pull their own), FLAG /
+NUMBER PLATE / ANTENNA / HORN (synth clips), SPEED + PROXIMITY sensors with threshold → wires with amounts,
+AND/OR/NOT/NOR. Gadgets room toggle on the CREATE ROOM card. Count: 63 blocks.
