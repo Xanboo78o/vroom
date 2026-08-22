@@ -966,7 +966,7 @@ function render(ts){
   drawPuddles(ctx);
   drawDebris(ctx, z);
   drawRopes(ctx, G.machines);
-  for(const m of G.machines.values()) drawMachine(ctx, m, z, ts, 1, { com: G.mode === 'build' && m.id === G.buildTarget, xray: G.mode === 'build' && m.id === G.buildTarget, name: plateName(m) });
+  for(const m of G.machines.values()) drawMachine(ctx, m, z, ts, 1, { com: G.mode === 'build' && m.id === G.buildTarget, xray: G.mode === 'build' && m.id === G.buildTarget, name: plateName(m), front: colorFor(m.owner) });
   if(G.mode === 'build'){ const bm = G.machines.get(G.buildTarget); if(bm){ drawFlow(ctx); drawReadout(ctx, bm); } drawBuildOverlay(ctx, z); }
   for(const g of G.guys.values()) drawGuy(ctx, g, z, ts);
   if(G.me) drawGuy(ctx, G.me, z, ts);
@@ -975,6 +975,22 @@ function render(ts){
   drawFX(ctx);
   drawClouds(ctx, myPid());
   drawCanopy(ctx, view, z);
+  gradePass(ctx, d);
+}
+/* the cohesive light pass: one soft sun (warm top-left, cool shade bottom-right) for pop +
+   a gentle vignette so the action reads in the middle. Screen space, cheap, every frame. */
+function gradePass(ctx, d){
+  const W = G.W, H = G.H;
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+  // warm sun from the top (lifts + unifies), the faintest cool in the low corners (depth)
+  const gl = ctx.createLinearGradient(0, 0, W * 0.7, H);
+  gl.addColorStop(0, 'rgba(255,240,206,0.16)'); gl.addColorStop(0.55, 'rgba(255,255,255,0)'); gl.addColorStop(1, 'rgba(42,54,86,0.12)');
+  ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = gl; ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over';
+  // a gentle vignette so the action reads in the middle (corners only)
+  const R = Math.hypot(W, H) * 0.5, vg = ctx.createRadialGradient(W / 2, H / 2, R * 0.62, W / 2, H / 2, R);
+  vg.addColorStop(0, 'rgba(20,26,46,0)'); vg.addColorStop(1, 'rgba(20,26,46,0.15)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
 }
 function plateName(m){ return m.owner === myPid() ? (G.me ? G.me.name : '') : ((NET.peers.get(m.owner) || {}).name || ''); }
 

@@ -37,10 +37,19 @@ export function art(ctx, key, w, h, zoom, alpha = 1){
   return true;
 }
 
-/* blob shadow: the depth cue that sells jumps from above */
-export function shadow(ctx, x, y, rx, ry, a = 0.18){
-  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
-  ctx.fillStyle = rgba(PAL.shadow, a); ctx.fill();
+/* the one light in the world: a soft sun from the top-left. Everything shades the same way. */
+export const LIGHT = { dx: 0.16, dy: 0.2 };   // a shadow falls just this far (×object size)
+/* soft contact shadow: a tight radial fade hugging the object's base — it reads as SITTING on the
+   ground, giving figure-ground pop, instead of a hard grey smudge floating beside it. */
+export function shadow(ctx, x, y, rx, ry, a = 0.24){
+  const ox = x + LIGHT.dx * ry, oy = y + LIGHT.dy * ry;
+  const R = Math.max(rx, ry, 0.001);
+  const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, R);
+  g.addColorStop(0, rgba(PAL.shadow, a));
+  g.addColorStop(0.5, rgba(PAL.shadow, a * 0.55));
+  g.addColorStop(1, rgba(PAL.shadow, 0));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(ox, oy, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
 }
 
 /* text in world units (font scales with zoom), optional pill background */

@@ -658,6 +658,13 @@ export function drawMachine(ctx, m, zoom, t, ghostAlpha = 1, opts = {}){
       }
       ctx.restore();
     }
+    // a bright, player-coloured NOSE at the very front — you always know which way you point
+    if(s.idx === 0 && opts.front != null && ghostAlpha >= 1){
+      const fx = m.boxC.x + m.center.x, fy = m.boxC.y + m.center.y - m.half.y;
+      ctx.beginPath(); ctx.moveTo(fx, fy - 0.24); ctx.lineTo(fx + 0.18, fy + 0.05); ctx.lineTo(fx - 0.18, fy + 0.05); ctx.closePath();
+      ctx.fillStyle = hex(opts.front); ctx.fill(); ctx.lineWidth = 0.055; ctx.lineJoin = 'round'; ctx.strokeStyle = hex(PAL.paper); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(fx, fy - 0.15); ctx.lineTo(fx + 0.07, fy + 0.01); ctx.lineTo(fx - 0.07, fy + 0.01); ctx.closePath(); ctx.fillStyle = rgba(0xffffff, 0.6); ctx.fill();   // lil sheen
+    }
     // centre-of-mass marker (garage / build)
     if(opts.com && s.idx === 0){
       ctx.save(); ctx.translate(m.center.x, m.center.y);

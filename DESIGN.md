@@ -713,3 +713,17 @@ break point (nose-fronted 207 mph vs blunt 153). Whole-body drag → m.cd. The g
 live (entry stays ~8 ms; the readout uses the cheap column estimate until it's ready, then the sim).
 On the track the garage-settled loads persist, so break-at-speed costs nothing per frame; after a
 mid-race shear it falls back to the estimate (never a synchronous re-settle).
+
+## UPDATE 4 — LIGHT PASS / "less confusing" (2026-08-22, Adam: "shaders overhauls. it needs to be less confusing")
+He picked: the WHOLE look reads flat/washed → BOLDER + clearer figure-ground (cars pop off the ground,
+a clear front on the car, calmer ground, same cute vibe). Shipped:
+- ONE light (draw.js LIGHT, a soft sun from the top-left): soft TIGHT contact shadows that hug each
+  object's base (shadow() is now a radial fade, small offset) — objects sit on the ground instead of
+  floating a hard grey smudge beside them.
+- A bright, player-COLOURED nose triangle at the front of every machine (machine.js drawMachine, opts.front
+  = colorFor(owner)) — you always know which way you point, and whose car is whose in a room.
+- Cleaner ground: lightened the muddy concrete apron (PAL.concrete), and the paddock's floating "rubber
+  smudge" ellipses became faint thin tire SKIDS (world.js) — they read as marks, not shadows.
+- gradePass() in render(): a cohesive grade over the whole frame — a warm sun lift from the top (soft-light)
+  + a gentle corner vignette so the action reads in the middle. Lifts + focuses; does NOT darken.
+Kept everything cute; nothing recoloured wholesale, no new UI chrome.

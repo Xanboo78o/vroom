@@ -11,7 +11,7 @@ export const PAL = {
   dim: 0xf1e8d0, dimBorder: 0xd9cdb0, fuel: 0xb5d33b, batt: 0x2fcfa1,
   // ---- world ----
   grass: 0x7fc855, grassDark: 0x6db449, grassLight: 0x95d76a,
-  shoulder: 0xb4b9c1, asphalt: 0x5a6170, concrete: 0xbdb7a9, gravel: 0xc7b185, gravelEdge: 0xd9c79c, dash: 0xf6f3e8, edgeLine: 0xfafaf5,
+  shoulder: 0xb4b9c1, asphalt: 0x5a6170, concrete: 0xccc8bf, gravel: 0xc7b185, gravelEdge: 0xd9c79c, dash: 0xf6f3e8, edgeLine: 0xfafaf5,
   checker: 0xf8f5ec, checkerDark: 0x4b515d, kerbRed: 0xe8403a, kerbCream: 0xfaf5e6,
   pitLane: 0x6b7382, pad: 0xffcf3d, padDot: 0xd9a91f, pitWall: 0xe3e6ea, bay: 0xfaf8f0,
   plaza: 0xe6c27c, ramp: 0xf28a2e, rampSkirt: 0xcc6d1f, chevron: 0xfff1d6, cone: 0xff6f2e, coneStripe: 0xfff6ea,

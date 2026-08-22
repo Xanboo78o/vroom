@@ -74,3 +74,10 @@ Default binds: W/S engines + motors · Space brake · R thrusters · F piston ·
 Pit lane / garage / Q also restock gadget ammo and fix flats. Net: builds carry configs; drops, ropes, punches, flames, trailer angles sync.
 **The air is a real fluid (js/air.js).** A little wind-tunnel sim (lattice-Boltzmann) runs over your build: air streams in, bends around your shapes, speeds up past edges, stalls in front of blunt blocks and leaves a wake behind them — the tunnel streamlines you see ARE the flow. Each block's air load = how hard the moving air actually hits its exposed faces (a block tucked in a wake feels almost nothing; a nose sheds the flow), so a streamlined front raises the whole build's break point (nose-fronted ~207 mph vs blunt ~153). **Your speed is the wind on the track:** past the readout's BREAKS AT number, parts rip off one at a time.
 Art slots for all new blocks are listed in ART.md (code fallbacks draw them until Adam does).
+
+
+## UPDATE 4 — the light pass (readability)
+One soft sun over the whole game: tight contact shadows so cars/props sit on the ground and pop, a bright
+player-coloured NOSE on every machine so you always know which way it faces (and whose it is), a cleaner
+lighter paddock (faint tire skids instead of shadow-blobs), and a warm-sun + gentle-vignette grade so the
+action reads in the middle. Same cute vibe, just clearer.

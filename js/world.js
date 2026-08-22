@@ -160,9 +160,10 @@ export function drawWorld(ctx, view, zoom, t){
     ctx.strokeStyle = rgba(PAL.pad, 0.55); ctx.lineWidth = 0.35; ctx.lineCap = 'butt';
     for(const sx of [-1, 1]) for(let k = -9; k <= 9; k++){ const bx = sx * (A.w / 2 - 4) + k * 1.2; ctx.beginPath(); ctx.moveTo(bx - 2, A.y - A.d / 2); ctx.lineTo(bx + 2, A.y - A.d / 2 + 4); ctx.moveTo(bx - 2, A.y + A.d / 2 - 4); ctx.lineTo(bx + 2, A.y + A.d / 2); ctx.stroke(); }
     ctx.strokeStyle = rgba(PAL.edgeLine, 0.7); ctx.lineWidth = 0.3; for(const sx of [-1, 1]){ ctx.beginPath(); ctx.moveTo(sx * (A.w / 2 - 8), A.y - A.d / 2); ctx.lineTo(sx * (A.w / 2 - 8), A.y - A.d / 2 + 4); ctx.moveTo(sx * (A.w / 2 - 8), A.y + A.d / 2 - 4); ctx.lineTo(sx * (A.w / 2 - 8), A.y + A.d / 2); ctx.stroke(); }
-    ctx.fillStyle = rgba(0x2a2d33, 0.09);
-    for(const [mx, my, mw, mh, ma] of [[-30, -219, 2.4, 0.7, 0.3], [-12, -218, 3, 0.6, -0.2], [14, -221, 2, 0.6, 0.5], [24, -208, 3.4, 0.7, 0.1], [-20, -206, 2.6, 0.7, -0.4], [6, -216, 1.8, 0.5, 0.8], [40, -198, 3, 0.7, 0.2], [-42, -199, 2.4, 0.6, -0.3]]){
-      ctx.save(); ctx.translate(mx, my); ctx.rotate(ma); ctx.beginPath(); ctx.ellipse(0, 0, mw, mh, 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(0.8, 0.6, mw * 0.7, mh * 0.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+    // faint tire skids (thin streaks, not blobs — they read as marks on the ground, not shadows)
+    ctx.strokeStyle = rgba(0x33363d, 0.14); ctx.lineWidth = 0.18; ctx.lineCap = 'round';
+    for(const [mx, my, mw, ma] of [[-30, -219, 3.2, 0.3], [-12, -218, 4, -0.2], [14, -221, 2.6, 0.5], [24, -208, 4.4, 0.1], [-20, -206, 3.4, -0.4], [40, -198, 4, 0.2], [-42, -199, 3.2, -0.3]]){
+      ctx.save(); ctx.translate(mx, my); ctx.rotate(ma); ctx.beginPath(); ctx.moveTo(-mw / 2, -0.12); ctx.lineTo(mw / 2, -0.12); ctx.moveTo(-mw / 2, 0.12); ctx.lineTo(mw / 2, 0.12); ctx.stroke(); ctx.restore(); }
     ctx.restore();
     for(const [bx, by, br] of WORLD.beds){
       disc(ctx, bx, by, br, shade(PAL.trunk, .9), 0.08, shade(PAL.trunk, .7)); disc(ctx, bx, by, br * 0.8, PAL.grassDark, 0);
